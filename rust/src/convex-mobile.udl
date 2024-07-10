@@ -1,0 +1,48 @@
+namespace convexmobile {};
+
+[Traits=(Debug)]
+interface ClientError {
+};
+
+interface MobileConvexClient {
+    constructor(string deployment_url);
+
+    [Async, Throws=ClientError]
+    void connect();
+
+    [Async, Throws=ClientError]
+    ConvexValue query(string name);
+
+    [Async, Throws=ClientError]
+    void subscribe(string name, QuerySubscriber subscriber);
+
+    [Async, Throws=ClientError]
+    ConvexValue mutation(string name, record<string, ConvexValue> args);
+};
+
+enum ConvexValueType {
+    "Null",
+    "Int64",
+    "Float64",
+    "Boolean",
+    "String",
+    "Bytes",
+    "Array",
+    "Object",
+};
+
+dictionary ConvexValue {
+    ConvexValueType vtype;
+    i64? int64_value;
+    double? float64_value;
+    boolean? bool_value;
+    string? string_value;
+    sequence<u8>? bytes_value;
+    sequence<ConvexValue>? array_value;
+    record<string, ConvexValue>? object_value;
+};
+
+[Trait, WithForeign]
+interface QuerySubscriber {
+    void on_update(ConvexValue value);
+};
