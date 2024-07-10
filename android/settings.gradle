@@ -20,4 +20,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "Convex for Android"
-include ':lib'
+include ':convexmobile'
