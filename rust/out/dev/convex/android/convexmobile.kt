@@ -641,24 +641,32 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
     fun callback(`callbackData`: Long,`result`: UniffiForeignFutureStructVoid.UniffiByValue,)
 }
 internal interface UniffiCallbackInterfaceQuerySubscriberMethod0 : com.sun.jna.Callback {
+    fun callback(`uniffiHandle`: Long,`message`: RustBuffer.ByValue,`value`: RustBuffer.ByValue,`uniffiOutReturn`: Pointer,uniffiCallStatus: UniffiRustCallStatus,)
+}
+internal interface UniffiCallbackInterfaceQuerySubscriberMethod1 : com.sun.jna.Callback {
     fun callback(`uniffiHandle`: Long,`value`: RustBuffer.ByValue,`uniffiOutReturn`: Pointer,uniffiCallStatus: UniffiRustCallStatus,)
 }
-@Structure.FieldOrder("onUpdate", "uniffiFree")
+@Structure.FieldOrder("onError", "onUpdate", "uniffiFree")
 internal open class UniffiVTableCallbackInterfaceQuerySubscriber(
-    @JvmField internal var `onUpdate`: UniffiCallbackInterfaceQuerySubscriberMethod0? = null,
+    @JvmField internal var `onError`: UniffiCallbackInterfaceQuerySubscriberMethod0? = null,
+    @JvmField internal var `onUpdate`: UniffiCallbackInterfaceQuerySubscriberMethod1? = null,
     @JvmField internal var `uniffiFree`: UniffiCallbackInterfaceFree? = null,
 ) : Structure() {
     class UniffiByValue(
-        `onUpdate`: UniffiCallbackInterfaceQuerySubscriberMethod0? = null,
+        `onError`: UniffiCallbackInterfaceQuerySubscriberMethod0? = null,
+        `onUpdate`: UniffiCallbackInterfaceQuerySubscriberMethod1? = null,
         `uniffiFree`: UniffiCallbackInterfaceFree? = null,
-    ): UniffiVTableCallbackInterfaceQuerySubscriber(`onUpdate`,`uniffiFree`,), Structure.ByValue
+    ): UniffiVTableCallbackInterfaceQuerySubscriber(`onError`,`onUpdate`,`uniffiFree`,), Structure.ByValue
 
    internal fun uniffiSetValue(other: UniffiVTableCallbackInterfaceQuerySubscriber) {
+        `onError` = other.`onError`
         `onUpdate` = other.`onUpdate`
         `uniffiFree` = other.`uniffiFree`
     }
 
 }
+
+
 
 
 
@@ -783,6 +791,8 @@ internal interface UniffiLib : Library {
     ): Unit
     fun uniffi_convexmobile_fn_init_callback_vtable_querysubscriber(`vtable`: UniffiVTableCallbackInterfaceQuerySubscriber,
     ): Unit
+    fun uniffi_convexmobile_fn_method_querysubscriber_on_error(`ptr`: Pointer,`message`: RustBuffer.ByValue,`value`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
     fun uniffi_convexmobile_fn_method_querysubscriber_on_update(`ptr`: Pointer,`value`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     fun ffi_convexmobile_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
@@ -905,6 +915,8 @@ internal interface UniffiLib : Library {
     ): Short
     fun uniffi_convexmobile_checksum_method_mobileconvexclient_subscribe(
     ): Short
+    fun uniffi_convexmobile_checksum_method_querysubscriber_on_error(
+    ): Short
     fun uniffi_convexmobile_checksum_method_querysubscriber_on_update(
     ): Short
     fun uniffi_convexmobile_checksum_constructor_mobileconvexclient_new(
@@ -936,6 +948,9 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_convexmobile_checksum_method_mobileconvexclient_subscribe() != 12961.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_convexmobile_checksum_method_querysubscriber_on_error() != 47928.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_convexmobile_checksum_method_querysubscriber_on_update() != 51304.toShort()) {
@@ -1866,6 +1881,8 @@ public object FfiConverterTypeMobileConvexClient: FfiConverter<MobileConvexClien
 
 public interface QuerySubscriber {
     
+    fun `onError`(`message`: kotlin.String, `value`: ConvexValue?)
+    
     fun `onUpdate`(`value`: ConvexValue)
     
     companion object
@@ -1952,6 +1969,17 @@ open class QuerySubscriberImpl: Disposable, AutoCloseable, QuerySubscriber {
         }
     }
 
+    override fun `onError`(`message`: kotlin.String, `value`: ConvexValue?)
+        = 
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_convexmobile_fn_method_querysubscriber_on_error(
+        it, FfiConverterString.lower(`message`),FfiConverterOptionalTypeConvexValue.lower(`value`),_status)
+}
+    }
+    
+    
+
     override fun `onUpdate`(`value`: ConvexValue)
         = 
     callWithPointer {
@@ -2002,7 +2030,20 @@ public abstract class FfiConverterCallbackInterface<CallbackInterface: Any>: Ffi
 
 // Put the implementation in an object so we don't pollute the top-level namespace
 internal object uniffiCallbackInterfaceQuerySubscriber {
-    internal object `onUpdate`: UniffiCallbackInterfaceQuerySubscriberMethod0 {
+    internal object `onError`: UniffiCallbackInterfaceQuerySubscriberMethod0 {
+        override fun callback(`uniffiHandle`: Long,`message`: RustBuffer.ByValue,`value`: RustBuffer.ByValue,`uniffiOutReturn`: Pointer,uniffiCallStatus: UniffiRustCallStatus,) {
+            val uniffiObj = FfiConverterTypeQuerySubscriber.handleMap.get(uniffiHandle)
+            val makeCall = { ->
+                uniffiObj.`onError`(
+                    FfiConverterString.lift(`message`),
+                    FfiConverterOptionalTypeConvexValue.lift(`value`),
+                )
+            }
+            val writeReturn = { _: Unit -> Unit }
+            uniffiTraitInterfaceCall(uniffiCallStatus, makeCall, writeReturn)
+        }
+    }
+    internal object `onUpdate`: UniffiCallbackInterfaceQuerySubscriberMethod1 {
         override fun callback(`uniffiHandle`: Long,`value`: RustBuffer.ByValue,`uniffiOutReturn`: Pointer,uniffiCallStatus: UniffiRustCallStatus,) {
             val uniffiObj = FfiConverterTypeQuerySubscriber.handleMap.get(uniffiHandle)
             val makeCall = { ->
@@ -2022,6 +2063,7 @@ internal object uniffiCallbackInterfaceQuerySubscriber {
     }
 
     internal var vtable = UniffiVTableCallbackInterfaceQuerySubscriber.UniffiByValue(
+        `onError`,
         `onUpdate`,
         uniffiFree,
     )
@@ -2257,6 +2299,35 @@ public object FfiConverterOptionalString: FfiConverterRustBuffer<kotlin.String?>
         } else {
             buf.put(1)
             FfiConverterString.write(value, buf)
+        }
+    }
+}
+
+
+
+
+public object FfiConverterOptionalTypeConvexValue: FfiConverterRustBuffer<ConvexValue?> {
+    override fun read(buf: ByteBuffer): ConvexValue? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterTypeConvexValue.read(buf)
+    }
+
+    override fun allocationSize(value: ConvexValue?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterTypeConvexValue.allocationSize(value)
+        }
+    }
+
+    override fun write(value: ConvexValue?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterTypeConvexValue.write(value, buf)
         }
     }
 }

@@ -45,4 +45,5 @@ dictionary ConvexValue {
 [Trait, WithForeign]
 interface QuerySubscriber {
     void on_update(ConvexValue value);
+    void on_error(string message, ConvexValue? value);
 };

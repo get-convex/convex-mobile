@@ -5,6 +5,7 @@ use futures::{select_biased, FutureExt};
 use log::debug;
 use log::LevelFilter;
 use once_cell::sync::OnceCell;
+
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -63,6 +64,8 @@ pub struct ConvexValue {
 
 pub trait QuerySubscriber: Send + Sync {
     fn on_update(&self, value: ConvexValue) -> ();
+
+    fn on_error(&self, message: String, value: Option<ConvexValue>) -> ();
 }
 
 struct MobileConvexClient {
@@ -143,12 +146,8 @@ impl MobileConvexClient {
         .write()
         .await
         .clone();
-        let handle = self.rt.spawn(async move {
-            let mut subscription = client
-                .subscribe(name.as_str(), BTreeMap::new())
-                .await
-                .unwrap();
-
+        let mut subscription = client.subscribe(name.as_str(), BTreeMap::new()).await?;
+        self.rt.spawn(async move {
             // let cancel_fut = cancel_receiver.fuse();
             // pin_mut!(cancel_fut);
             loop {
@@ -157,7 +156,8 @@ impl MobileConvexClient {
                         let new_val = new_val.expect("Client dropped prematurely");
                         match new_val {
                             FunctionResult::Value(value) => subscriber.on_update(value_to_convex_value(value)),
-                            _ => ()
+                            FunctionResult::ErrorMessage(message) => subscriber.on_error(message, None),
+                            FunctionResult::ConvexError(error) => subscriber.on_error(error.message, Some(value_to_convex_value(error.data)))
                         }
                     }
                 }
