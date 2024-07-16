@@ -1,7 +1,8 @@
 use android_logger::Config;
 use anyhow::anyhow;
 use convex::{ConvexClient, FunctionResult, Value};
-use futures::{select_biased, FutureExt};
+use futures::channel::mpsc;
+use futures::{pin_mut, select_biased, FutureExt, StreamExt};
 use log::debug;
 use log::LevelFilter;
 use once_cell::sync::OnceCell;
@@ -10,7 +11,6 @@ use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::{sync::RwLock, task::JoinError};
-use tokio_stream::StreamExt;
 
 #[derive(Debug, thiserror::Error)]
 #[error("{e:?}")]
@@ -66,6 +66,23 @@ pub trait QuerySubscriber: Send + Sync {
     fn on_update(&self, value: ConvexValue) -> ();
 
     fn on_error(&self, message: String, value: Option<ConvexValue>) -> ();
+}
+
+pub struct SubscriptionHandle {
+    cancel_sender: futures::channel::mpsc::Sender<()>
+}
+
+impl SubscriptionHandle {
+    pub fn new(cancel_sender: futures::channel::mpsc::Sender<()>) -> Self {
+        SubscriptionHandle{cancel_sender: cancel_sender}
+    }
+
+    pub fn cancel(&self) {
+        match self.cancel_sender.to_owned().try_send(()) {
+            Ok(_) => (),
+            Err(_) => debug!("Error when attempting to cancel, maybe the loop already died?"),
+        };
+    }
 }
 
 struct MobileConvexClient {
@@ -137,8 +154,7 @@ impl MobileConvexClient {
         &self,
         name: String,
         subscriber: Arc<dyn QuerySubscriber>,
-    ) -> Result<(), ClientError> {
-        // TODO: this needs cancellation support.
+    ) -> Result<Option<Arc<SubscriptionHandle>>, ClientError> {
         let mut client = match self.client.get() {
             Some(c) => Ok(c),
             None => Err(anyhow!("must connect client first")),
@@ -146,10 +162,12 @@ impl MobileConvexClient {
         .write()
         .await
         .clone();
+        debug!("New subscription");
         let mut subscription = client.subscribe(name.as_str(), BTreeMap::new()).await?;
+        let (cancel_sender, cancel_receiver) = mpsc::channel::<()>(1);
         self.rt.spawn(async move {
-            // let cancel_fut = cancel_receiver.fuse();
-            // pin_mut!(cancel_fut);
+            let cancel_fut = cancel_receiver.into_future();
+            pin_mut!(cancel_fut);
             loop {
                 select_biased! {
                     new_val = subscription.next().fuse() => {
@@ -159,11 +177,15 @@ impl MobileConvexClient {
                             FunctionResult::ErrorMessage(message) => subscriber.on_error(message, None),
                             FunctionResult::ConvexError(error) => subscriber.on_error(error.message, Some(value_to_convex_value(error.data)))
                         }
-                    }
+                    },
+                    _ = cancel_fut => {
+                        break
+                    },
                 }
             }
+            debug!("Subscription canceled");
         });
-        Ok(())
+        Ok(Some(Arc::new(SubscriptionHandle::new(cancel_sender))))
     }
 
     pub async fn mutation(

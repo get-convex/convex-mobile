@@ -13,11 +13,19 @@ interface MobileConvexClient {
     [Async, Throws=ClientError]
     ConvexValue query(string name);
 
+    // This has to return a nullable value while https://github.com/mozilla/uniffi-rs/issues/2189 exists.
+    // Otherwise it's impossible to implement a fake MobileConvexClient on the foreign side (it has to
+    // return a concrete SubscriptionHandle, which it can't construct).
     [Async, Throws=ClientError]
-    void subscribe(string name, QuerySubscriber subscriber);
+    SubscriptionHandle? subscribe(string name, QuerySubscriber subscriber);
 
     [Async, Throws=ClientError]
     ConvexValue mutation(string name, record<string, ConvexValue> args);
+};
+
+interface SubscriptionHandle {
+    [Self=ByArc]
+    void cancel();
 };
 
 enum ConvexValueType {
