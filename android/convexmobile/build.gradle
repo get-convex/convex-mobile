@@ -1,4 +1,5 @@
 plugins {
+    alias(libs.plugins.rust.android.gradle)
     alias(libs.plugins.android.library)
     alias(libs.plugins.jetbrains.kotlin.android)
 }
@@ -6,6 +7,8 @@ plugins {
 android {
     namespace 'dev.convex.android'
     compileSdk 34
+
+    ndkVersion = "27.0.11902837"
 
     defaultConfig {
         minSdk 26
@@ -29,15 +32,44 @@ android {
     kotlinOptions {
         jvmTarget = '1.8'
     }
-    sourceSets {
-        main.java.srcDirs += '../../rust/out/dev/convex/android'
-    }
     publishing {
         multipleVariants {
             allVariants()
             withJavadocJar()
         }
     }
+}
+
+cargo {
+    module = "../../rust"
+    libname = "convexmobile"
+    targets = ["arm64"]
+}
+
+tasks.whenTaskAdded { task ->
+    if ((task.name == 'generateDebugUniFFIBindings' || task.name == 'generateReleaseUniFFIBindings')) {
+        task.dependsOn 'cargoBuild'
+    }
+    if (task.name == 'compileDebugKotlin') {
+        task.dependsOn 'generateDebugUniFFIBindings'
+    } else if (task.name == 'compileReleaseKotlin') {
+        task.dependsOn 'generateReleaseUniFFIBindings'
+    }
+}
+
+tasks.register("generateUniFFIBinary", Exec) {
+    workingDir "${project.projectDir}/../../rust"
+    commandLine 'cargo', 'build'
+}
+
+android.libraryVariants.all { variant ->
+    def t = tasks.register("generate${variant.name.capitalize()}UniFFIBindings", Exec) {
+        workingDir "${project.projectDir}/../../rust"
+        commandLine './target/debug/uniffi-bindgen', 'generate', '--library', "${project.layout.buildDirectory.asFile.get().path}/rustJniLibs/android/arm64-v8a/libconvexmobile.so", '--language', 'kotlin', '--out-dir', "${project.layout.buildDirectory.asFile.get().path}/generated/source/uniffi/${variant.name}/java"
+        dependsOn 'generateUniFFIBinary'
+    }
+    def sourceSet = variant.sourceSets.find { it.name == variant.name }
+    sourceSet.java.srcDir new File(project.layout.buildDirectory.asFile.get().path, "generated/source/uniffi/${variant.name}/java")
 }
 
 publishing {
