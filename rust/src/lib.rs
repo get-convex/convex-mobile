@@ -1,11 +1,12 @@
 use android_logger::Config;
 use anyhow::anyhow;
 use convex::{ConvexClient, FunctionResult, Value};
-use futures::channel::mpsc;
+use futures::channel::oneshot::{self, Sender};
 use futures::{pin_mut, select_biased, FutureExt, StreamExt};
 use log::debug;
 use log::LevelFilter;
 use once_cell::sync::OnceCell;
+use parking_lot::Mutex;
 
 use std::collections::BTreeMap;
 use std::collections::HashMap;
@@ -69,19 +70,18 @@ pub trait QuerySubscriber: Send + Sync {
 }
 
 pub struct SubscriptionHandle {
-    cancel_sender: futures::channel::mpsc::Sender<()>
+    cancel_sender: Mutex<Option<Sender<()>>>
 }
 
 impl SubscriptionHandle {
-    pub fn new(cancel_sender: futures::channel::mpsc::Sender<()>) -> Self {
-        SubscriptionHandle{cancel_sender: cancel_sender}
+    pub fn new(cancel_sender: Sender<()>) -> Self {
+        SubscriptionHandle{cancel_sender: Mutex::new(Some(cancel_sender))}
     }
 
     pub fn cancel(&self) {
-        match self.cancel_sender.to_owned().try_send(()) {
-            Ok(_) => (),
-            Err(_) => debug!("Error when attempting to cancel, maybe the loop already died?"),
-        };
+            if let Some(sender) = self.cancel_sender.lock().take() {
+                sender.send(()).unwrap();
+            }
     }
 }
 
@@ -164,9 +164,9 @@ impl MobileConvexClient {
         .clone();
         debug!("New subscription");
         let mut subscription = client.subscribe(name.as_str(), BTreeMap::new()).await?;
-        let (cancel_sender, cancel_receiver) = mpsc::channel::<()>(1);
+        let (cancel_sender, cancel_receiver) = oneshot::channel::<()>();
         self.rt.spawn(async move {
-            let cancel_fut = cancel_receiver.into_future();
+            let cancel_fut = cancel_receiver.fuse();
             pin_mut!(cancel_fut);
             loop {
                 select_biased! {

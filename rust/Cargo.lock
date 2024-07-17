@@ -269,6 +269,7 @@ dependencies = [
  "futures",
  "log",
  "once_cell",
+ "parking_lot",
  "thiserror",
  "tokio",
  "tokio-stream",
