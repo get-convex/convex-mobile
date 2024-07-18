@@ -107,7 +107,7 @@ impl MobileConvexClient {
         }
     }
 
-    pub async fn connected_client(&self) -> &ConvexClient {
+    async fn connected_client(&self) -> ConvexClient {
         let url = self.deployment_url.clone();
 
         self.client
@@ -119,11 +119,11 @@ impl MobileConvexClient {
                     .unwrap();
                 client.unwrap()
             })
-            .await
+            .await.clone()
     }
 
     pub async fn query(&self, name: String) -> Result<ConvexValue, ClientError> {
-        let mut client = self.connected_client().await.clone();
+        let mut client = self.connected_client().await;
         debug!("got the client");
         let result = self
             .rt
@@ -150,7 +150,7 @@ impl MobileConvexClient {
         name: String,
         subscriber: Arc<dyn QuerySubscriber>,
     ) -> Result<Option<Arc<SubscriptionHandle>>, ClientError> {
-        let mut client = self.connected_client().await.clone();
+        let mut client = self.connected_client().await;
         debug!("New subscription");
         let mut subscription = client.subscribe(name.as_str(), BTreeMap::new()).await?;
         let (cancel_sender, cancel_receiver) = oneshot::channel::<()>();
@@ -182,7 +182,7 @@ impl MobileConvexClient {
         name: String,
         args: HashMap<String, ConvexValue>,
     ) -> Result<ConvexValue, ClientError> {
-        let mut client = self.connected_client().await.clone();
+        let mut client = self.connected_client().await;
 
         let result = self
             .rt
