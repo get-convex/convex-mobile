@@ -1,11 +1,11 @@
 use android_logger::Config;
 use anyhow::anyhow;
+use async_once_cell::OnceCell;
 use convex::{ConvexClient, FunctionResult, Value};
 use futures::channel::oneshot::{self, Sender};
 use futures::{pin_mut, select_biased, FutureExt, StreamExt};
 use log::debug;
 use log::LevelFilter;
-use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
 
 use std::collections::BTreeMap;
@@ -70,18 +70,20 @@ pub trait QuerySubscriber: Send + Sync {
 }
 
 pub struct SubscriptionHandle {
-    cancel_sender: Mutex<Option<Sender<()>>>
+    cancel_sender: Mutex<Option<Sender<()>>>,
 }
 
 impl SubscriptionHandle {
     pub fn new(cancel_sender: Sender<()>) -> Self {
-        SubscriptionHandle{cancel_sender: Mutex::new(Some(cancel_sender))}
+        SubscriptionHandle {
+            cancel_sender: Mutex::new(Some(cancel_sender)),
+        }
     }
 
     pub fn cancel(&self) {
-            if let Some(sender) = self.cancel_sender.lock().take() {
-                sender.send(()).unwrap();
-            }
+        if let Some(sender) = self.cancel_sender.lock().take() {
+            sender.send(()).unwrap();
+        }
     }
 }
 
@@ -105,27 +107,23 @@ impl MobileConvexClient {
         }
     }
 
-    pub async fn connect(&self) -> Result<(), ClientError> {
+    pub async fn connected_client(&self) -> &ConvexClient {
         let url = self.deployment_url.clone();
-        let client = self
-            .rt
-            .spawn(async move { ConvexClient::new(url.as_str()).await })
-            .await?;
-        match client {
-            Ok(client) => {
-                self.client.get_or_init(|| client);
-                Ok(())
-            }
-            Err(_) => Err(anyhow!("blah").into()),
-        }
+
+        self.client
+            .get_or_init(async {
+                let client = self
+                    .rt
+                    .spawn(async move { ConvexClient::new(url.as_str()).await })
+                    .await
+                    .unwrap();
+                client.unwrap()
+            })
+            .await
     }
 
     pub async fn query(&self, name: String) -> Result<ConvexValue, ClientError> {
-        let mut client = match self.client.get() {
-            Some(c) => Ok(c),
-            None => Err(anyhow!("must connect client first")),
-        }?
-        .clone();
+        let mut client = self.connected_client().await.clone();
         debug!("got the client");
         let result = self
             .rt
@@ -152,11 +150,7 @@ impl MobileConvexClient {
         name: String,
         subscriber: Arc<dyn QuerySubscriber>,
     ) -> Result<Option<Arc<SubscriptionHandle>>, ClientError> {
-        let mut client = match self.client.get() {
-            Some(c) => Ok(c),
-            None => Err(anyhow!("must connect client first")),
-        }?
-        .clone();
+        let mut client = self.connected_client().await.clone();
         debug!("New subscription");
         let mut subscription = client.subscribe(name.as_str(), BTreeMap::new()).await?;
         let (cancel_sender, cancel_receiver) = oneshot::channel::<()>();
@@ -188,11 +182,7 @@ impl MobileConvexClient {
         name: String,
         args: HashMap<String, ConvexValue>,
     ) -> Result<ConvexValue, ClientError> {
-        let mut client = match self.client.get() {
-            Some(c) => Ok(c),
-            None => Err(anyhow!("must connect client first")),
-        }?
-        .clone();
+        let mut client = self.connected_client().await.clone();
 
         let result = self
             .rt

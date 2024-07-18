@@ -8,9 +8,6 @@ interface MobileConvexClient {
     constructor(string deployment_url);
 
     [Async, Throws=ClientError]
-    void connect();
-
-    [Async, Throws=ClientError]
     ConvexValue query(string name);
 
     // This has to return a nullable value while https://github.com/mozilla/uniffi-rs/issues/2189 exists.
