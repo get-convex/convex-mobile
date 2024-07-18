@@ -11,7 +11,7 @@ use parking_lot::Mutex;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::{sync::RwLock, task::JoinError};
+use tokio::task::JoinError;
 
 #[derive(Debug, thiserror::Error)]
 #[error("{e:?}")]
@@ -87,7 +87,7 @@ impl SubscriptionHandle {
 
 struct MobileConvexClient {
     deployment_url: String,
-    client: OnceCell<RwLock<ConvexClient>>,
+    client: OnceCell<ConvexClient>,
     rt: tokio::runtime::Runtime,
 }
 
@@ -113,7 +113,7 @@ impl MobileConvexClient {
             .await?;
         match client {
             Ok(client) => {
-                self.client.get_or_init(|| RwLock::new(client));
+                self.client.get_or_init(|| client);
                 Ok(())
             }
             Err(_) => Err(anyhow!("blah").into()),
@@ -125,8 +125,6 @@ impl MobileConvexClient {
             Some(c) => Ok(c),
             None => Err(anyhow!("must connect client first")),
         }?
-        .write()
-        .await
         .clone();
         debug!("got the client");
         let result = self
@@ -158,8 +156,6 @@ impl MobileConvexClient {
             Some(c) => Ok(c),
             None => Err(anyhow!("must connect client first")),
         }?
-        .write()
-        .await
         .clone();
         debug!("New subscription");
         let mut subscription = client.subscribe(name.as_str(), BTreeMap::new()).await?;
@@ -196,8 +192,6 @@ impl MobileConvexClient {
             Some(c) => Ok(c),
             None => Err(anyhow!("must connect client first")),
         }?
-        .write()
-        .await
         .clone();
 
         let result = self
