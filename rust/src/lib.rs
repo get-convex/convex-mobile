@@ -33,7 +33,6 @@ impl From<JoinError> for ClientError {
     }
 }
 
-
 impl From<serde_json::Error> for ClientError {
     fn from(_: serde_json::Error) -> Self {
         Self {
@@ -120,7 +119,9 @@ impl MobileConvexClient {
             .await??;
         debug!("got the result");
         match result {
-            FunctionResult::Value(v) => Ok(serde_json::ser::to_string(&serde_json::Value::from(v))?),
+            FunctionResult::Value(v) => {
+                Ok(serde_json::ser::to_string(&serde_json::Value::from(v))?)
+            }
             _ => Err(anyhow!("error querying").into()),
         }
     }
@@ -168,25 +169,7 @@ impl MobileConvexClient {
 
         let result = self
             .rt
-            .spawn(async move {
-                client
-                    .mutation(
-                        &name,
-                        args.into_iter()
-                            .map(|(k, v)| {
-                                (
-                                    k,
-                                    Value::try_from(
-                                        serde_json::from_str::<serde_json::Value>(&v)
-                                            .expect("Invalid JSON data from FFI"),
-                                    )
-                                    .expect("Invalid Convex data from FFI"),
-                                )
-                            })
-                            .collect(),
-                    )
-                    .await
-            })
+            .spawn(async move { client.mutation(&name, parse_json_args(args)).await })
             .await??;
 
         match result {
@@ -196,6 +179,42 @@ impl MobileConvexClient {
             _ => Err(anyhow!("error mutating").into()),
         }
     }
+
+    pub async fn action(
+        &self,
+        name: String,
+        args: HashMap<String, String>,
+    ) -> Result<String, ClientError> {
+        let mut client = self.connected_client().await;
+        debug!("Running action: {}", name);
+        let result = self
+            .rt
+            .spawn(async move { client.action(&name, parse_json_args(args)).await })
+            .await??;
+
+        debug!("Got action result: {:?}", result);
+        match result {
+            FunctionResult::Value(v) => {
+                Ok(serde_json::ser::to_string(&serde_json::Value::from(v))?)
+            }
+            _ => Err(anyhow!("error in action").into()),
+        }
+    }
 }
 
+fn parse_json_args(raw_args: HashMap<String, String>) -> BTreeMap<String, Value> {
+    raw_args
+        .into_iter()
+        .map(|(k, v)| {
+            (
+                k,
+                Value::try_from(
+                    serde_json::from_str::<serde_json::Value>(&v)
+                        .expect("Invalid JSON data from FFI"),
+                )
+                .expect("Invalid Convex data from FFI"),
+            )
+        })
+        .collect()
+}
 uniffi::include_scaffolding!("convex-mobile");

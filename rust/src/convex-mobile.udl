@@ -18,6 +18,9 @@ interface MobileConvexClient {
 
     [Async, Throws=ClientError]
     string mutation(string name, record<string, string> args);
+
+    [Async, Throws=ClientError]
+    string action(string name, record<string, string> args);
 };
 
 interface SubscriptionHandle {
