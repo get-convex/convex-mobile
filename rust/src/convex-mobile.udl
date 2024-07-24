@@ -8,7 +8,7 @@ interface MobileConvexClient {
     constructor(string deployment_url);
 
     [Async, Throws=ClientError]
-    ConvexValue query(string name);
+    string query(string name);
 
     // This has to return a nullable value while https://github.com/mozilla/uniffi-rs/issues/2189 exists.
     // Otherwise it's impossible to implement a fake MobileConvexClient on the foreign side (it has to
@@ -17,7 +17,7 @@ interface MobileConvexClient {
     SubscriptionHandle? subscribe(string name, QuerySubscriber subscriber);
 
     [Async, Throws=ClientError]
-    ConvexValue mutation(string name, record<string, ConvexValue> args);
+    string mutation(string name, record<string, string> args);
 };
 
 interface SubscriptionHandle {
@@ -25,30 +25,8 @@ interface SubscriptionHandle {
     void cancel();
 };
 
-enum ConvexValueType {
-    "Null",
-    "Int64",
-    "Float64",
-    "Boolean",
-    "String",
-    "Bytes",
-    "Array",
-    "Object",
-};
-
-dictionary ConvexValue {
-    ConvexValueType vtype;
-    i64? int64_value;
-    double? float64_value;
-    boolean? bool_value;
-    string? string_value;
-    sequence<u8>? bytes_value;
-    sequence<ConvexValue>? array_value;
-    record<string, ConvexValue>? object_value;
-};
-
 [Trait, WithForeign]
 interface QuerySubscriber {
-    void on_update(ConvexValue value);
-    void on_error(string message, ConvexValue? value);
+    void on_update(string value);
+    void on_error(string message, string? value);
 };

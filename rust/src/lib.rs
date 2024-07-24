@@ -33,40 +33,19 @@ impl From<JoinError> for ClientError {
     }
 }
 
-#[derive(Clone)]
-enum ConvexValueType {
-    Null,
-    Int64,
-    Float64,
-    Boolean,
-    String,
-    Bytes,
-    Array,
-    Object,
-}
 
-impl Default for ConvexValueType {
-    fn default() -> Self {
-        ConvexValueType::Null
+impl From<serde_json::Error> for ClientError {
+    fn from(_: serde_json::Error) -> Self {
+        Self {
+            e: anyhow!("JSON error"),
+        }
     }
 }
 
-#[derive(Default)]
-pub struct ConvexValue {
-    vtype: ConvexValueType,
-    int64_value: Option<i64>,
-    float64_value: Option<f64>,
-    bool_value: Option<bool>,
-    string_value: Option<String>,
-    bytes_value: Option<Vec<u8>>,
-    array_value: Option<Vec<ConvexValue>>,
-    object_value: Option<HashMap<String, ConvexValue>>,
-}
-
 pub trait QuerySubscriber: Send + Sync {
-    fn on_update(&self, value: ConvexValue) -> ();
+    fn on_update(&self, value: String) -> ();
 
-    fn on_error(&self, message: String, value: Option<ConvexValue>) -> ();
+    fn on_error(&self, message: String, value: Option<String>) -> ();
 }
 
 pub struct SubscriptionHandle {
@@ -119,10 +98,11 @@ impl MobileConvexClient {
                     .unwrap();
                 client.unwrap()
             })
-            .await.clone()
+            .await
+            .clone()
     }
 
-    pub async fn query(&self, name: String) -> Result<ConvexValue, ClientError> {
+    pub async fn query(&self, name: String) -> Result<String, ClientError> {
         let mut client = self.connected_client().await;
         debug!("got the client");
         let result = self
@@ -140,7 +120,7 @@ impl MobileConvexClient {
             .await??;
         debug!("got the result");
         match result {
-            FunctionResult::Value(v) => Ok(value_to_convex_value(v)),
+            FunctionResult::Value(v) => Ok(serde_json::ser::to_string(&serde_json::Value::from(v))?),
             _ => Err(anyhow!("error querying").into()),
         }
     }
@@ -162,9 +142,11 @@ impl MobileConvexClient {
                     new_val = subscription.next().fuse() => {
                         let new_val = new_val.expect("Client dropped prematurely");
                         match new_val {
-                            FunctionResult::Value(value) => subscriber.on_update(value_to_convex_value(value)),
+                            FunctionResult::Value(value) => {
+                                debug!("Updating with {value:?}");
+                                subscriber.on_update(serde_json::ser::to_string(&serde_json::Value::from(value)).unwrap())},
                             FunctionResult::ErrorMessage(message) => subscriber.on_error(message, None),
-                            FunctionResult::ConvexError(error) => subscriber.on_error(error.message, Some(value_to_convex_value(error.data)))
+                            FunctionResult::ConvexError(error) => subscriber.on_error(error.message, Some(serde_json::ser::to_string(&serde_json::Value::from(error.data)).unwrap()))
                         }
                     },
                     _ = cancel_fut => {
@@ -180,8 +162,8 @@ impl MobileConvexClient {
     pub async fn mutation(
         &self,
         name: String,
-        args: HashMap<String, ConvexValue>,
-    ) -> Result<ConvexValue, ClientError> {
+        args: HashMap<String, String>,
+    ) -> Result<String, ClientError> {
         let mut client = self.connected_client().await;
 
         let result = self
@@ -191,7 +173,16 @@ impl MobileConvexClient {
                     .mutation(
                         &name,
                         args.into_iter()
-                            .map(|(k, v)| (k, convex_value_to_value(v)))
+                            .map(|(k, v)| {
+                                (
+                                    k,
+                                    Value::try_from(
+                                        serde_json::from_str::<serde_json::Value>(&v)
+                                            .expect("Invalid JSON data from FFI"),
+                                    )
+                                    .expect("Invalid Convex data from FFI"),
+                                )
+                            })
                             .collect(),
                     )
                     .await
@@ -199,102 +190,11 @@ impl MobileConvexClient {
             .await??;
 
         match result {
-            FunctionResult::Value(v) => Ok(value_to_convex_value(v)),
+            FunctionResult::Value(v) => {
+                Ok(serde_json::ser::to_string(&serde_json::Value::from(v))?)
+            }
             _ => Err(anyhow!("error mutating").into()),
         }
-    }
-}
-
-fn value_to_convex_value(value: Value) -> ConvexValue {
-    match value {
-        Value::Null => ConvexValue {
-            ..Default::default()
-        },
-        Value::Int64(v) => ConvexValue {
-            vtype: ConvexValueType::Int64,
-            int64_value: Some(v),
-            ..Default::default()
-        },
-        Value::Float64(v) => ConvexValue {
-            vtype: ConvexValueType::Float64,
-            float64_value: Some(v),
-            ..Default::default()
-        },
-        Value::Array(v) => ConvexValue {
-            vtype: ConvexValueType::Array,
-            array_value: Some(v.into_iter().map(value_to_convex_value).collect()),
-            ..Default::default()
-        },
-        Value::String(v) => ConvexValue {
-            vtype: ConvexValueType::String,
-            string_value: Some(v),
-            ..Default::default()
-        },
-        Value::Object(v) => ConvexValue {
-            vtype: ConvexValueType::Object,
-            object_value: Some(
-                v.into_iter()
-                    .map(|(k, v)| (k.to_owned(), value_to_convex_value(v)))
-                    .collect(),
-            ),
-            ..Default::default()
-        },
-        _ => panic!("unimplemented"),
-    }
-}
-
-fn convex_value_to_value(value: ConvexValue) -> Value {
-    match value {
-        ConvexValue {
-            vtype: ConvexValueType::Null,
-            ..
-        } => Value::Null,
-        ConvexValue {
-            vtype: ConvexValueType::Int64,
-            int64_value: Some(value),
-            ..
-        } => Value::Int64(value),
-        ConvexValue {
-            vtype: ConvexValueType::Float64,
-            float64_value: Some(value),
-            ..
-        } => Value::Float64(value),
-        ConvexValue {
-            vtype: ConvexValueType::String,
-            string_value: Some(value),
-            ..
-        } => Value::String(value),
-        ConvexValue {
-            vtype: ConvexValueType::Boolean,
-            bool_value: Some(value),
-            ..
-        } => Value::Boolean(value),
-        ConvexValue {
-            vtype: ConvexValueType::Bytes,
-            bytes_value: Some(value),
-            ..
-        } => Value::Bytes(value),
-        ConvexValue {
-            vtype: ConvexValueType::Array,
-            array_value: Some(value),
-            ..
-        } => Value::Array(
-            value
-                .into_iter()
-                .map(|v| convex_value_to_value(v))
-                .collect(),
-        ),
-        ConvexValue {
-            vtype: ConvexValueType::Object,
-            object_value: Some(value),
-            ..
-        } => Value::Object(
-            value
-                .into_iter()
-                .map(|(k, v)| (k.to_owned(), convex_value_to_value(v)))
-                .collect(),
-        ),
-        _ => panic!("unmatched value converting ConvexValue -> Value"),
     }
 }
 
