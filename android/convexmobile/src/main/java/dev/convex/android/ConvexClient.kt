@@ -1,9 +1,6 @@
+package dev.convex.android
+
 import android.util.Log
-import dev.convex.android.ClientException
-import dev.convex.android.ConvexException
-import dev.convex.android.MobileConvexClientInterface
-import dev.convex.android.QuerySubscriber
-import dev.convex.android.toJsonElement
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -24,24 +21,22 @@ internal val jsonApi = Json { ignoreUnknownKeys = true }
  */
 class ConvexClient(@PublishedApi internal val ffiClient: MobileConvexClientInterface) {
     /**
-     * Subscribes to the query with the given [name] and uses the [handler] to convert data into a
-     * [Flow].
+     * Subscribes to the query with the given [name] and converts data from the subscription into a
+     * [Flow] of [Result]s containing [T].
      *
      * Will cancel the upstream subscription if whatever is subscribed to the [Flow] stops
      * listening.
      *
-     * @param T intermediate data type that will be decoded from JSON
-     * @param R result data type that will be exposed in the [Flow]
+     * @param T result data type that will be decoded from JSON
      */
-    suspend inline fun <reified T, R> subscribe(
-        name: String,
-        handler: FlowHandler<T, R>
-    ): Flow<R> = callbackFlow {
+    suspend inline fun <reified T> subscribe(
+        name: String
+    ): Flow<Result<T>> = callbackFlow {
         val subscription = ffiClient.subscribe(name, object : QuerySubscriber {
             override fun onUpdate(value: String) {
                 try {
                     val data = jsonApi.decodeFromString<T>(value)
-                    trySend(handler.flowData(data))
+                    trySend(Result.success(data))
                 } catch (e: Throwable) {
                     // Don't catch when https://github.com/mozilla/uniffi-rs/issues/2194 is fixed.
                     // Ideally any unchecked exception that happens here goes uncaught and triggers
@@ -54,12 +49,12 @@ class ConvexClient(@PublishedApi internal val ffiClient: MobileConvexClientInter
             }
 
             override fun onError(message: String, value: String?) {
-                trySend(handler.flowError(message))
+                trySend(Result.failure(ConvexException(message)))
             }
         })
 
         awaitClose {
-            subscription?.cancel();
+            subscription?.cancel()
         }
     }
 
@@ -79,7 +74,7 @@ class ConvexClient(@PublishedApi internal val ffiClient: MobileConvexClientInter
                 args?.mapValues { it.value.toJsonElement().toString() } ?: mapOf())
             return jsonApi.decodeFromString<T>(jsonData)
         } catch (e: ClientException) {
-            throw ConvexException(e.message(), e)
+            throw ConvexException.from(e)
         }
     }
 
@@ -99,13 +94,7 @@ class ConvexClient(@PublishedApi internal val ffiClient: MobileConvexClientInter
                 args?.mapValues { it.value.toJsonElement().toString() } ?: mapOf())
             return jsonApi.decodeFromString<T>(jsonData)
         } catch (e: ClientException) {
-            throw ConvexException(e.message(), e)
+            throw ConvexException.from(e)
         }
     }
-}
-
-interface FlowHandler<T, R> {
-    fun flowData(data: T): R
-
-    fun flowError(message: String): R
 }
