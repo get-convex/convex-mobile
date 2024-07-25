@@ -19,6 +19,12 @@ struct ClientError {
     e: anyhow::Error,
 }
 
+impl ClientError {
+    fn message(&self) -> String {
+        self.e.to_string()
+    }
+}
+
 impl From<anyhow::Error> for ClientError {
     fn from(e: anyhow::Error) -> Self {
         Self { e }

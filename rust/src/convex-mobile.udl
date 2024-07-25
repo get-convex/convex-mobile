@@ -2,6 +2,7 @@ namespace convexmobile {};
 
 [Traits=(Debug)]
 interface ClientError {
+    string message();
 };
 
 interface MobileConvexClient {
