@@ -22,6 +22,9 @@ interface MobileConvexClient {
 
     [Async, Throws=ClientError]
     string action(string name, record<string, string> args);
+
+    [Async]
+    void set_auth(string? token);
 };
 
 interface SubscriptionHandle {

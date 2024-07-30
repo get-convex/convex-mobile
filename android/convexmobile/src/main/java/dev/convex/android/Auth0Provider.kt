@@ -41,4 +41,7 @@ class Auth0Provider(
                 }
             })
     }
+
+    override fun extractIdToken(authResult: Credentials): String = authResult.idToken
+
 }

@@ -206,6 +206,14 @@ impl MobileConvexClient {
             _ => Err(anyhow!("error in action").into()),
         }
     }
+
+    pub async fn set_auth(&self, token: Option<String>) {
+        let mut client = self.connected_client().await;
+        self
+            .rt
+            .spawn(async move { client.set_auth(token).await })
+            .await.expect("Error joining thread");
+    }
 }
 
 fn parse_json_args(raw_args: HashMap<String, String>) -> BTreeMap<String, Value> {

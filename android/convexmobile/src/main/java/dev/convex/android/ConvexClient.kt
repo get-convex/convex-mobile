@@ -111,13 +111,17 @@ class ConvexClientWithAuth<T>(
     suspend fun login(context: Context): Result<T> {
         _authState.emit(AuthState.AuthLoading())
         val result = authProvider.login(context)
-        return result.onSuccess { _authState.emit(AuthState.Authenticated(result.getOrThrow())) }
+        return result.onSuccess {
+            ffiClient.setAuth(authProvider.extractIdToken(it))
+            _authState.emit(AuthState.Authenticated(result.getOrThrow()))
+        }
             .onFailure { _authState.emit(AuthState.Unauthenticated()) }
     }
 
     suspend fun logout(context: Context): Result<Void?> {
         val result = authProvider.logout(context)
         if (result.isSuccess) {
+            ffiClient.setAuth(null)
             _authState.emit(AuthState.Unauthenticated())
         }
         return result
@@ -133,4 +137,5 @@ sealed class AuthState<T> {
 interface AuthProvider<T> {
     suspend fun login(context: Context): Result<T>
     suspend fun logout(context: Context): Result<Void?>
+    fun extractIdToken(authResult: T): String
 }
