@@ -1,9 +1,12 @@
 package dev.convex.android
 
+import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.serialization.json.Json
 
@@ -19,7 +22,7 @@ internal val jsonApi = Json { ignoreUnknownKeys = true }
  * Consumers of this client should use Kotlin's JSON serialization to handle data sent to/from the
  * Convex backend.
  */
-class ConvexClient(@PublishedApi internal val ffiClient: MobileConvexClientInterface) {
+abstract class BaseConvexClient(@PublishedApi internal val ffiClient: MobileConvexClientInterface) {
     /**
      * Subscribes to the query with the given [name] and converts data from the subscription into a
      * [Flow] of [Result]s containing [T].
@@ -69,8 +72,7 @@ class ConvexClient(@PublishedApi internal val ffiClient: MobileConvexClientInter
      */
     suspend inline fun <reified T> action(name: String, args: Map<String, Any>? = null): T {
         try {
-            val jsonData = ffiClient.action(
-                name,
+            val jsonData = ffiClient.action(name,
                 args?.mapValues { it.value.toJsonElement().toString() } ?: mapOf())
             return jsonApi.decodeFromString<T>(jsonData)
         } catch (e: ClientException) {
@@ -89,12 +91,46 @@ class ConvexClient(@PublishedApi internal val ffiClient: MobileConvexClientInter
      */
     suspend inline fun <reified T> mutation(name: String, args: Map<String, Any>? = null): T {
         try {
-            val jsonData = ffiClient.mutation(
-                name,
+            val jsonData = ffiClient.mutation(name,
                 args?.mapValues { it.value.toJsonElement().toString() } ?: mapOf())
             return jsonApi.decodeFromString<T>(jsonData)
         } catch (e: ClientException) {
             throw ConvexException.from(e)
         }
     }
+}
+
+class ConvexClient(ffiClient: MobileConvexClientInterface) : BaseConvexClient(ffiClient)
+
+class ConvexClientWithAuth<T>(
+    ffiClient: MobileConvexClientInterface, private val authProvider: AuthProvider<T>
+) : BaseConvexClient(ffiClient) {
+    private val _authState = MutableStateFlow<AuthState<T>>(AuthState.Unauthenticated())
+    val authState: StateFlow<AuthState<T>> = _authState
+
+    suspend fun login(context: Context): Result<T> {
+        _authState.emit(AuthState.AuthLoading())
+        val result = authProvider.login(context)
+        return result.onSuccess { _authState.emit(AuthState.Authenticated(result.getOrThrow())) }
+            .onFailure { _authState.emit(AuthState.Unauthenticated()) }
+    }
+
+    suspend fun logout(context: Context): Result<Void?> {
+        val result = authProvider.logout(context)
+        if (result.isSuccess) {
+            _authState.emit(AuthState.Unauthenticated())
+        }
+        return result
+    }
+}
+
+sealed class AuthState<T> {
+    data class Authenticated<T>(val userInfo: T) : AuthState<T>()
+    class Unauthenticated<T> : AuthState<T>()
+    class AuthLoading<T> : AuthState<T>()
+}
+
+interface AuthProvider<T> {
+    suspend fun login(context: Context): Result<T>
+    suspend fun logout(context: Context): Result<Void?>
 }
