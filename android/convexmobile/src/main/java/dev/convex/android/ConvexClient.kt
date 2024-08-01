@@ -67,7 +67,7 @@ open class ConvexClient(
             })
 
         awaitClose {
-            subscription?.cancel()
+            subscription.cancel()
         }
     }
 

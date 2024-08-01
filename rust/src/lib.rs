@@ -95,7 +95,7 @@ impl MobileConvexClient {
     ///
     /// The first call is guaranteed to create the client object and subsequent calls will return
     /// clones of that connected client.
-    /// 
+    ///
     /// Returns an error if ...
     /// TODO figure out reasons.
     async fn connected_client(&self) -> anyhow::Result<ConvexClient> {
@@ -148,7 +148,7 @@ impl MobileConvexClient {
         name: String,
         args: HashMap<String, String>,
         subscriber: Arc<dyn QuerySubscriber>,
-    ) -> Result<Option<Arc<SubscriptionHandle>>, ClientError> {
+    ) -> Result<Arc<SubscriptionHandle>, ClientError> {
         let mut client = self.connected_client().await?;
         debug!("New subscription");
         let mut subscription = client
@@ -177,7 +177,7 @@ impl MobileConvexClient {
             }
             debug!("Subscription canceled");
         });
-        Ok(Some(Arc::new(SubscriptionHandle::new(cancel_sender))))
+        Ok(Arc::new(SubscriptionHandle::new(cancel_sender)))
     }
 
     pub async fn mutation(
