@@ -22,7 +22,14 @@ internal val jsonApi = Json { ignoreUnknownKeys = true }
  * Consumers of this client should use Kotlin's JSON serialization to handle data sent to/from the
  * Convex backend.
  */
-abstract class BaseConvexClient(@PublishedApi internal val ffiClient: MobileConvexClientInterface) {
+open class ConvexClient(
+    deploymentUrl: String,
+    ffiClientFactory: (deploymentUrl: String) -> MobileConvexClientInterface = ::MobileConvexClient
+) {
+
+    @PublishedApi
+    internal val ffiClient = ffiClientFactory(deploymentUrl)
+
     /**
      * Subscribes to the query with the given [name] and converts data from the subscription into a
      * [Flow] of [Result]s containing [T].
@@ -103,16 +110,16 @@ abstract class BaseConvexClient(@PublishedApi internal val ffiClient: MobileConv
     }
 }
 
-class ConvexClient(ffiClient: MobileConvexClientInterface) : BaseConvexClient(ffiClient)
-
 /**
  * Like [ConvexClient], but supports integration with an authentication provider via [AuthProvider].
  *
  * @param T the data returned from the [AuthProvider] upon successful authentication
  */
 class ConvexClientWithAuth<T>(
-    ffiClient: MobileConvexClientInterface, private val authProvider: AuthProvider<T>
-) : BaseConvexClient(ffiClient) {
+    deploymentUrl: String,
+    private val authProvider: AuthProvider<T>,
+    ffiClientFactory: (deploymentUrl: String) -> MobileConvexClientInterface = ::MobileConvexClient
+) : ConvexClient(deploymentUrl, ffiClientFactory) {
     private val _authState = MutableStateFlow<AuthState<T>>(AuthState.Unauthenticated())
 
     /**
