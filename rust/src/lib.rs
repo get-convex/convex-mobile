@@ -71,6 +71,11 @@ impl SubscriptionHandle {
     }
 }
 
+/// A wrapper around a [ConvexClient] and a [tokio::runtime::Runtime] used to asynchronously call
+/// Convex functions.
+///
+/// That enables easy async communication for mobile clients. They can call the various methods on
+/// [MobileConvexClient] and await results without blocking their main threads.
 struct MobileConvexClient {
     deployment_url: String,
     client: OnceCell<ConvexClient>,
@@ -78,6 +83,10 @@ struct MobileConvexClient {
 }
 
 impl MobileConvexClient {
+    /// Creates a new [MobileConvexClient].
+    ///
+    /// The internal [ConvexClient] doesn't get created/connected until the first public method call that
+    /// hits the Convex backend.
     pub fn new(deployment_url: String) -> MobileConvexClient {
         android_logger::init_once(Config::default().with_max_level(LevelFilter::Trace));
         let rt = tokio::runtime::Builder::new_multi_thread()
@@ -111,6 +120,7 @@ impl MobileConvexClient {
             .map(|client_ref| client_ref.clone())
     }
 
+    /// Execute a one-shot query against the Convex backend.
     pub async fn query(
         &self,
         name: String,
@@ -143,6 +153,12 @@ impl MobileConvexClient {
         }
     }
 
+    /// Subscribe to updates to a query against the Convex backend.
+    ///
+    /// The [QuerySubscriber] will be called back with initial query results and it will continue to
+    /// get called as the underlying data changes.
+    ///
+    /// The returned [SubscriptionHandle] can be used to cancel the subscription.
     pub async fn subscribe(
         &self,
         name: String,
@@ -180,6 +196,7 @@ impl MobileConvexClient {
         Ok(Arc::new(SubscriptionHandle::new(cancel_sender)))
     }
 
+    /// Run a mutation against the Convex backend.
     pub async fn mutation(
         &self,
         name: String,
@@ -203,6 +220,7 @@ impl MobileConvexClient {
         }
     }
 
+    /// Run an action on the Convex backend.
     pub async fn action(
         &self,
         name: String,
@@ -227,6 +245,13 @@ impl MobileConvexClient {
         }
     }
 
+    /// Provide an OpenID Connect ID token to be associated with this client.
+    ///
+    /// Doing so will share that information with the Convex backend and a valid token will give the
+    /// backend knowledge of a logged in user.
+    ///
+    /// Passing [None] for the token will disassociate a previous token, effectively returning to a
+    /// logged out state.
     pub async fn set_auth(&self, token: Option<String>) -> Result<(), ClientError> {
         let mut client = self.connected_client().await?;
         self.rt
