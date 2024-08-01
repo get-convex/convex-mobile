@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.rust.android.gradle)
     alias(libs.plugins.android.library)
     alias(libs.plugins.jetbrains.kotlin.android)
+    id 'signing'
 }
 
 android {
@@ -78,6 +79,32 @@ publishing {
             groupId = 'dev.convex'
             artifactId = 'android-convexmobile'
             version = '0.1.0'
+            pom {
+                name = 'Convex for Android'
+                description = 'Android client library for building apps with convex.dev'
+                url = 'https://www.convex.dev/'
+
+                licenses {
+                    license {
+                        name = 'The Apache License, Version 2.0'
+                        url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                    }
+                }
+
+                developers {
+                    developer {
+                        name = 'Christian Wyglendowski'
+                        email = 'christian@convex.dev'
+                        organization = 'Convex, Inc.'
+                        organizationUrl = 'https://www.convex.dev/'
+                    }
+                }
+
+                scm {
+                    connection = 'scm:git:git://example.com/unreleased.git'
+                    url = 'https://www.convex.dev/'
+                }
+            }
 
             afterEvaluate {
                 from components.release
@@ -87,9 +114,6 @@ publishing {
                 maven {
                     name = 'zipRepo'
                     url = "${project.layout.buildDirectory.asFile.get().path}/repo"
-                    mavenContent {
-                        snapshotsOnly()
-                    }
                 }
             }
         }
@@ -97,8 +121,11 @@ publishing {
 
 }
 
-dependencies {
+signing {
+    sign publishing.publications
+}
 
+dependencies {
     implementation libs.androidx.core.ktx
     implementation libs.androidx.appcompat
     implementation libs.material
