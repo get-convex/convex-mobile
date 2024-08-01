@@ -9,6 +9,16 @@ import com.auth0.android.result.Credentials
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
+/**
+ * Enables a [ConvexClientWithAuth] to use [Auth0](https://auth0.com/).
+ *
+ * Successful logins provide Auth0's [Credentials] for the authenticated user. They can be used to
+ * customize the app experience for your users.
+ *
+ * @param clientId the Auth0 client ID configured for your application
+ * @param domain the Auth0 domain configured for your application
+ * @param scheme the scheme used in your Auth0 login and logout callback URLs
+ */
 class Auth0Provider(
     clientId: String,
     domain: String,
@@ -43,5 +53,4 @@ class Auth0Provider(
     }
 
     override fun extractIdToken(authResult: Credentials): String = authResult.idToken
-
 }

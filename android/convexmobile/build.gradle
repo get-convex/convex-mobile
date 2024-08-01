@@ -82,8 +82,19 @@ publishing {
             afterEvaluate {
                 from components.release
             }
+
+            repositories {
+                maven {
+                    name = 'zipRepo'
+                    url = "${project.layout.buildDirectory.asFile.get().path}/repo"
+                    mavenContent {
+                        snapshotsOnly()
+                    }
+                }
+            }
         }
     }
+
 }
 
 dependencies {

@@ -9,13 +9,13 @@ interface MobileConvexClient {
     constructor(string deployment_url);
 
     [Async, Throws=ClientError]
-    string query(string name);
+    string query(string name, record<string, string> args);
 
     // This has to return a nullable value while https://github.com/mozilla/uniffi-rs/issues/2189 exists.
     // Otherwise it's impossible to implement a fake MobileConvexClient on the foreign side (it has to
     // return a concrete SubscriptionHandle, which it can't construct).
     [Async, Throws=ClientError]
-    SubscriptionHandle? subscribe(string name, QuerySubscriber subscriber);
+    SubscriptionHandle? subscribe(string name, record<string, string> args, QuerySubscriber subscriber);
 
     [Async, Throws=ClientError]
     string mutation(string name, record<string, string> args);

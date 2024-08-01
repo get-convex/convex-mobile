@@ -107,7 +107,11 @@ impl MobileConvexClient {
             .clone()
     }
 
-    pub async fn query(&self, name: String) -> Result<String, ClientError> {
+    pub async fn query(
+        &self,
+        name: String,
+        args: HashMap<String, String>,
+    ) -> Result<String, ClientError> {
         let mut client = self.connected_client().await;
         debug!("got the client");
         let result = self
@@ -115,7 +119,7 @@ impl MobileConvexClient {
             .spawn(async move {
                 Ok::<FunctionResult, ClientError>(
                     client
-                        .subscribe(name.as_str(), BTreeMap::new())
+                        .subscribe(name.as_str(), parse_json_args(args))
                         .await?
                         .next()
                         .await
@@ -135,11 +139,14 @@ impl MobileConvexClient {
     pub async fn subscribe(
         &self,
         name: String,
+        args: HashMap<String, String>,
         subscriber: Arc<dyn QuerySubscriber>,
     ) -> Result<Option<Arc<SubscriptionHandle>>, ClientError> {
         let mut client = self.connected_client().await;
         debug!("New subscription");
-        let mut subscription = client.subscribe(name.as_str(), BTreeMap::new()).await?;
+        let mut subscription = client
+            .subscribe(name.as_str(), parse_json_args(args))
+            .await?;
         let (cancel_sender, cancel_receiver) = oneshot::channel::<()>();
         self.rt.spawn(async move {
             let cancel_fut = cancel_receiver.fuse();
@@ -209,10 +216,10 @@ impl MobileConvexClient {
 
     pub async fn set_auth(&self, token: Option<String>) {
         let mut client = self.connected_client().await;
-        self
-            .rt
+        self.rt
             .spawn(async move { client.set_auth(token).await })
-            .await.expect("Error joining thread");
+            .await
+            .expect("Error joining thread");
     }
 }
 

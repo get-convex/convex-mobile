@@ -33,28 +33,31 @@ abstract class BaseConvexClient(@PublishedApi internal val ffiClient: MobileConv
      * @param T result data type that will be decoded from JSON
      */
     suspend inline fun <reified T> subscribe(
-        name: String
+        name: String, args: Map<String, Any>? = null
     ): Flow<Result<T>> = callbackFlow {
-        val subscription = ffiClient.subscribe(name, object : QuerySubscriber {
-            override fun onUpdate(value: String) {
-                try {
-                    val data = jsonApi.decodeFromString<T>(value)
-                    trySend(Result.success(data))
-                } catch (e: Throwable) {
-                    // Don't catch when https://github.com/mozilla/uniffi-rs/issues/2194 is fixed.
-                    // Ideally any unchecked exception that happens here goes uncaught and triggers
-                    // a crash, as it's likely a developer error related to mishandling the JSON
-                    // data.
-                    val message = "error handling data from FFI"
-                    Log.e("QuerySubscriber.onUpdate", message, e)
-                    cancel(message, e)
+        val subscription = ffiClient.subscribe(
+            name,
+            args?.mapValues { it.value.toJsonElement().toString() } ?: mapOf(),
+            object : QuerySubscriber {
+                override fun onUpdate(value: String) {
+                    try {
+                        val data = jsonApi.decodeFromString<T>(value)
+                        trySend(Result.success(data))
+                    } catch (e: Throwable) {
+                        // Don't catch when https://github.com/mozilla/uniffi-rs/issues/2194 is fixed.
+                        // Ideally any unchecked exception that happens here goes uncaught and triggers
+                        // a crash, as it's likely a developer error related to mishandling the JSON
+                        // data.
+                        val message = "error handling data from FFI"
+                        Log.e("QuerySubscriber.onUpdate", message, e)
+                        cancel(message, e)
+                    }
                 }
-            }
 
-            override fun onError(message: String, value: String?) {
-                trySend(Result.failure(ConvexException(message)))
-            }
-        })
+                override fun onError(message: String, value: String?) {
+                    trySend(Result.failure(ConvexException(message)))
+                }
+            })
 
         awaitClose {
             subscription?.cancel()
@@ -102,12 +105,28 @@ abstract class BaseConvexClient(@PublishedApi internal val ffiClient: MobileConv
 
 class ConvexClient(ffiClient: MobileConvexClientInterface) : BaseConvexClient(ffiClient)
 
+/**
+ * Like [ConvexClient], but supports integration with an authentication provider via [AuthProvider].
+ *
+ * @param T the data returned from the [AuthProvider] upon successful authentication
+ */
 class ConvexClientWithAuth<T>(
     ffiClient: MobileConvexClientInterface, private val authProvider: AuthProvider<T>
 ) : BaseConvexClient(ffiClient) {
     private val _authState = MutableStateFlow<AuthState<T>>(AuthState.Unauthenticated())
+
+    /**
+     * A [Flow] of [AuthState] that represents the authentication state of this client instance.
+     */
     val authState: StateFlow<AuthState<T>> = _authState
 
+    /**
+     * Triggers a login flow and updates the [authState].
+     *
+     * The [authState] is set to [AuthState.AuthLoading] immediately upon calling this method and
+     * will change to either [AuthState.Authenticated] or [AuthState.Unauthenticated] depending on
+     * the result.
+     */
     suspend fun login(context: Context): Result<T> {
         _authState.emit(AuthState.AuthLoading())
         val result = authProvider.login(context)
@@ -118,6 +137,11 @@ class ConvexClientWithAuth<T>(
             .onFailure { _authState.emit(AuthState.Unauthenticated()) }
     }
 
+    /**
+     * Triggers a logout flow and updates the [authState].
+     *
+     * The [authState] will change to [AuthState.Unauthenticated] if logout is successful.
+     */
     suspend fun logout(context: Context): Result<Void?> {
         val result = authProvider.logout(context)
         if (result.isSuccess) {
@@ -128,14 +152,56 @@ class ConvexClientWithAuth<T>(
     }
 }
 
+/**
+ * Authentication states that can be experienced when using an [AuthProvider] with
+ * [ConvexClientWithAuth].
+ *
+ * @param T the type of data included upon a successful authentication attempt
+ */
 sealed class AuthState<T> {
+    /**
+     * The state that represents an authenticated user.
+     *
+     * Provides [userInfo] for consumers.
+     */
     data class Authenticated<T>(val userInfo: T) : AuthState<T>()
+
+    /**
+     * The state that represents an unauthenticated user.
+     */
     class Unauthenticated<T> : AuthState<T>()
+
+    /**
+     * The state that represents an ongoing authentication attempt.
+     */
     class AuthLoading<T> : AuthState<T>()
 }
 
+/**
+ * An authentication provider, used with [ConvexClientWithAuth].
+ *
+ * @param T the type of data included upon a successful authentication attempt
+ */
 interface AuthProvider<T> {
+    /**
+     * Trigger a login flow, which might launch a new UI/screen.
+     *
+     * @return a [Result] containing [T] upon successful login
+     */
     suspend fun login(context: Context): Result<T>
+
+    /**
+     * Trigger a logout flow, which might launch a new screen/UI.
+     *
+     * @return a [Result] which indicates whether logout was successful
+     */
     suspend fun logout(context: Context): Result<Void?>
+
+    /**
+     * Extracts a [JWT ID token](https://openid.net/specs/openid-connect-core-1_0.html#IDToken) from
+     * the [T] payload.
+     *
+     * The [T] payload is returned from a successful [login] attempt.
+     */
     fun extractIdToken(authResult: T): String
 }
