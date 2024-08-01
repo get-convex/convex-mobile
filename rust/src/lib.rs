@@ -91,20 +91,24 @@ impl MobileConvexClient {
         }
     }
 
-    async fn connected_client(&self) -> ConvexClient {
+    /// Returns a connected [ConvexClient].
+    ///
+    /// The first call is guaranteed to create the client object and subsequent calls will return
+    /// clones of that connected client.
+    /// 
+    /// Returns an error if ...
+    /// TODO figure out reasons.
+    async fn connected_client(&self) -> anyhow::Result<ConvexClient> {
         let url = self.deployment_url.clone();
 
         self.client
-            .get_or_init(async {
-                let client = self
-                    .rt
+            .get_or_try_init(async {
+                self.rt
                     .spawn(async move { ConvexClient::new(url.as_str()).await })
-                    .await
-                    .unwrap();
-                client.unwrap()
+                    .await?
             })
             .await
-            .clone()
+            .map(|client_ref| client_ref.clone())
     }
 
     pub async fn query(
@@ -112,7 +116,7 @@ impl MobileConvexClient {
         name: String,
         args: HashMap<String, String>,
     ) -> Result<String, ClientError> {
-        let mut client = self.connected_client().await;
+        let mut client = self.connected_client().await?;
         debug!("got the client");
         let result = self
             .rt
@@ -132,7 +136,10 @@ impl MobileConvexClient {
             FunctionResult::Value(v) => {
                 Ok(serde_json::ser::to_string(&serde_json::Value::from(v))?)
             }
-            _ => Err(anyhow!("error querying").into()),
+            FunctionResult::ConvexError(e) => Err(anyhow!("ConvexError in query: {e}").into()),
+            FunctionResult::ErrorMessage(msg) => {
+                Err(anyhow!("ErrorMessage for query: {msg}").into())
+            }
         }
     }
 
@@ -142,7 +149,7 @@ impl MobileConvexClient {
         args: HashMap<String, String>,
         subscriber: Arc<dyn QuerySubscriber>,
     ) -> Result<Option<Arc<SubscriptionHandle>>, ClientError> {
-        let mut client = self.connected_client().await;
+        let mut client = self.connected_client().await?;
         debug!("New subscription");
         let mut subscription = client
             .subscribe(name.as_str(), parse_json_args(args))
@@ -178,7 +185,7 @@ impl MobileConvexClient {
         name: String,
         args: HashMap<String, String>,
     ) -> Result<String, ClientError> {
-        let mut client = self.connected_client().await;
+        let mut client = self.connected_client().await?;
 
         let result = self
             .rt
@@ -189,7 +196,10 @@ impl MobileConvexClient {
             FunctionResult::Value(v) => {
                 Ok(serde_json::ser::to_string(&serde_json::Value::from(v))?)
             }
-            _ => Err(anyhow!("error mutating").into()),
+            FunctionResult::ConvexError(e) => Err(anyhow!("ConvexError in mutation: {e}").into()),
+            FunctionResult::ErrorMessage(msg) => {
+                Err(anyhow!("ErrorMessage for mutation: {msg}").into())
+            }
         }
     }
 
@@ -198,7 +208,7 @@ impl MobileConvexClient {
         name: String,
         args: HashMap<String, String>,
     ) -> Result<String, ClientError> {
-        let mut client = self.connected_client().await;
+        let mut client = self.connected_client().await?;
         debug!("Running action: {}", name);
         let result = self
             .rt
@@ -210,16 +220,19 @@ impl MobileConvexClient {
             FunctionResult::Value(v) => {
                 Ok(serde_json::ser::to_string(&serde_json::Value::from(v))?)
             }
-            _ => Err(anyhow!("error in action").into()),
+            FunctionResult::ConvexError(e) => Err(anyhow!("ConvexError in action: {e}").into()),
+            FunctionResult::ErrorMessage(msg) => {
+                Err(anyhow!("ErrorMessage for action: {msg}").into())
+            }
         }
     }
 
-    pub async fn set_auth(&self, token: Option<String>) {
-        let mut client = self.connected_client().await;
+    pub async fn set_auth(&self, token: Option<String>) -> Result<(), ClientError> {
+        let mut client = self.connected_client().await?;
         self.rt
             .spawn(async move { client.set_auth(token).await })
             .await
-            .expect("Error joining thread");
+            .map_err(|e| e.into())
     }
 }
 

@@ -23,7 +23,7 @@ interface MobileConvexClient {
     [Async, Throws=ClientError]
     string action(string name, record<string, string> args);
 
-    [Async]
+    [Async, Throws=ClientError]
     void set_auth(string? token);
 };
 
