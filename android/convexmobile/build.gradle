@@ -141,3 +141,27 @@ dependencies {
     androidTestImplementation libs.kotlinx.coroutines.test
     testImplementation(libs.strikt.core)
 }
+
+
+task convexLocalBackend {
+    doFirst {
+        println("Launching Convex backend")
+        ext.process = new ProcessBuilder()
+                .directory(projectDir)
+                .command("convex-local-backend")
+                .start()
+    }
+}
+
+task stopConvexLocalBackend {
+    doFirst {
+        println("Stopping Convex backend")
+        if (tasks.convexLocalBackend.process != null) {
+            tasks.convexLocalBackend.process.destroy()
+        }
+    }
+}
+
+task runJetty {
+    finalizedBy stopConvexLocalBackend
+}
