@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.rust.android.gradle)
     alias(libs.plugins.android.library)
     alias(libs.plugins.jetbrains.kotlin.android)
+    id 'org.jetbrains.kotlin.plugin.serialization' version '1.9.0'
     id 'signing'
 }
 
@@ -136,4 +137,6 @@ dependencies {
     implementation "net.java.dev.jna:jna:5.14.0@aar"
     implementation libs.kotlinx.serialization.json
     implementation libs.auth0
+    testImplementation libs.kotlinx.coroutines.test
+    testImplementation(libs.strikt.core)
 }
