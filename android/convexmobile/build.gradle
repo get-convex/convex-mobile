@@ -138,5 +138,6 @@ dependencies {
     implementation libs.kotlinx.serialization.json
     implementation libs.auth0
     testImplementation libs.kotlinx.coroutines.test
+    androidTestImplementation libs.kotlinx.coroutines.test
     testImplementation(libs.strikt.core)
 }
