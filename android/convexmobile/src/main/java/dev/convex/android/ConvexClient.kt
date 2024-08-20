@@ -76,7 +76,8 @@ open class ConvexClient(
      *
      * The [args] should be a map of [String] to any data that can be serialized to JSON.
      *
-     * For actions that don't return a value, use `Unit?` as the [T] parameter.
+     * For actions that don't return a value, prefer calling the version of this method that doesn't
+     * require a return type parameter.
      *
      * @param T data type that will be decoded from JSON and returned
      */
@@ -91,11 +92,26 @@ open class ConvexClient(
     }
 
     /**
+     * Executes the action with the given [name] and [args] and returns the result.
+     *
+     * The [args] should be a map of [String] to any data that can be serialized to JSON.
+     *
+     * This version requires that the remote action returns null or no value. If you wish to
+     * return a value from an action, use the version of the method that allows specifying the
+     * return type.
+     */
+    @JvmName("voidAction")
+    suspend fun action(name: String, args: Map<String, Any>? = null) {
+        action<Unit?>(name = name, args = args)
+    }
+
+    /**
      * Executes the mutation with the given [name] and [args] and returns the result.
      *
      * The [args] should be a map of [String] to any data that can be serialized to JSON.
      *
-     * For actions that don't return a value, use `Unit?` as the [T] parameter.
+     * For actions that don't return a value, prefer calling the version of this method that doesn't
+     * require a return type parameter.
      *
      * @param T data type that will be decoded from JSON and returned
      */
@@ -107,6 +123,20 @@ open class ConvexClient(
         } catch (e: ClientException) {
             throw ConvexException.from(e)
         }
+    }
+
+    /**
+     * Executes the mutation with the given [name] and [args].
+     *
+     * The [args] should be a map of [String] to any data that can be serialized to JSON.
+     *
+     * This version requires that the remote mutation returns null or no value. If you wish to
+     * return a value from a mutation, use the version of the method that allows specifying the
+     * return type.
+     */
+    @JvmName("voidMutation")
+    suspend fun mutation(name: String, args: Map<String, Any>? = null) {
+        mutation<Unit?>(name = name, args = args)
     }
 }
 
