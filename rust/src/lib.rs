@@ -126,21 +126,17 @@ impl MobileConvexClient {
         name: String,
         args: HashMap<String, String>,
     ) -> Result<String, ClientError> {
+        Ok(self.internal_query(name, args).await?)
+    }
+
+    async fn internal_query(
+        &self,
+        name: String,
+        args: HashMap<String, String>,
+    ) -> anyhow::Result<String> {
         let mut client = self.connected_client().await?;
         debug!("got the client");
-        let result = self
-            .rt
-            .spawn(async move {
-                Ok::<FunctionResult, ClientError>(
-                    client
-                        .subscribe(name.as_str(), parse_json_args(args))
-                        .await?
-                        .next()
-                        .await
-                        .expect("INTERNAL BUG: Convex Client dropped prematurely."),
-                )
-            })
-            .await??;
+        let result = client.query(name.as_str(), parse_json_args(args)).await?;
         debug!("got the result");
         match result {
             FunctionResult::Value(v) => {
