@@ -130,10 +130,10 @@ impl MobileConvexClient {
         args: HashMap<String, String>,
         subscriber: Arc<dyn QuerySubscriber>,
     ) -> Result<Arc<SubscriptionHandle>, ClientError> {
-        Ok(self.subscribe_internal(name, args, subscriber).await?)
+        Ok(self.internal_subscribe(name, args, subscriber).await?)
     }
 
-    async fn subscribe_internal(
+    async fn internal_subscribe(
         &self,
         name: String,
         args: HashMap<String, String>,
