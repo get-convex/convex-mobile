@@ -1,5 +1,4 @@
 use android_logger::Config;
-use anyhow::anyhow;
 use async_once_cell::OnceCell;
 use convex::{ConvexClient, FunctionResult, Value};
 use futures::channel::oneshot::{self, Sender};
@@ -127,27 +126,11 @@ impl MobileConvexClient {
         name: String,
         args: HashMap<String, String>,
     ) -> Result<String, ClientError> {
-        Ok(self.internal_query(name, args).await?)
-    }
-
-    async fn internal_query(
-        &self,
-        name: String,
-        args: HashMap<String, String>,
-    ) -> anyhow::Result<String> {
         let mut client = self.connected_client().await?;
         debug!("got the client");
         let result = client.query(name.as_str(), parse_json_args(args)).await?;
         debug!("got the result");
-        match result {
-            FunctionResult::Value(v) => {
-                Ok(serde_json::ser::to_string(&serde_json::Value::from(v))?)
-            }
-            FunctionResult::ConvexError(e) => Err(anyhow!("ConvexError in query: {e}").into()),
-            FunctionResult::ErrorMessage(msg) => {
-                Err(anyhow!("ErrorMessage for query: {msg}").into())
-            }
-        }
+        handle_direct_function_result(result)
     }
 
     /// Subscribe to updates to a query against the Convex backend.
@@ -206,17 +189,7 @@ impl MobileConvexClient {
             .spawn(async move { client.mutation(&name, parse_json_args(args)).await })
             .await??;
 
-        match result {
-            FunctionResult::Value(v) => {
-                Ok(serde_json::ser::to_string(&serde_json::Value::from(v))?)
-            }
-            FunctionResult::ConvexError(e) => Err(ClientError::ConvexError {
-                data: serde_json::ser::to_string(&serde_json::Value::from(e.data)).unwrap(),
-            }),
-            FunctionResult::ErrorMessage(msg) => {
-                Err(anyhow!("ErrorMessage for mutation: {msg}").into())
-            }
-        }
+        handle_direct_function_result(result)
     }
 
     /// Run an action on the Convex backend.
@@ -233,17 +206,7 @@ impl MobileConvexClient {
             .await??;
 
         debug!("Got action result: {:?}", result);
-        match result {
-            FunctionResult::Value(v) => {
-                Ok(serde_json::ser::to_string(&serde_json::Value::from(v))?)
-            }
-            FunctionResult::ConvexError(e) => Err(ClientError::ConvexError {
-                data: serde_json::ser::to_string(&serde_json::Value::from(e.data)).unwrap(),
-            }),
-            FunctionResult::ErrorMessage(msg) => {
-                Err(anyhow!("ErrorMessage for action: {msg}").into())
-            }
-        }
+        handle_direct_function_result(result)
     }
 
     /// Provide an OpenID Connect ID token to be associated with this client.
@@ -276,6 +239,16 @@ fn parse_json_args(raw_args: HashMap<String, String>) -> BTreeMap<String, Value>
             )
         })
         .collect()
+}
+
+fn handle_direct_function_result(result: FunctionResult) -> Result<String, ClientError> {
+    match result {
+        FunctionResult::Value(v) => Ok(serde_json::ser::to_string(&serde_json::Value::from(v))?),
+        FunctionResult::ConvexError(e) => Err(ClientError::ConvexError {
+            data: serde_json::ser::to_string(&serde_json::Value::from(e.data)).unwrap(),
+        }),
+        FunctionResult::ErrorMessage(msg) => Err(ClientError::ServerError { msg: msg }),
+    }
 }
 
 uniffi::include_scaffolding!("convex-mobile");
