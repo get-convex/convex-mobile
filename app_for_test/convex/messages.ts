@@ -1,10 +1,13 @@
-import { query, mutation } from "./_generated/server";
-import { v } from "convex/values";
+import { action, query, mutation } from "./_generated/server";
+import { ConvexError, v } from "convex/values";
 import schema from "./schema";
 
 export const list = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { forceError: v.optional(v.boolean()) },
+  handler: async (ctx, { forceError }) => {
+    if (forceError) {
+      throw new ConvexError("forced error data");
+    }
     // Grab the most recent messages.
     const messages = await ctx.db.query("messages").order("desc").take(100);
     // Reverse the list so that it's in a chronological order.
@@ -18,6 +21,20 @@ export const send = mutation({
     // Send a new message.
     await ctx.db.insert("messages", { body, author });
   },
+});
+
+export const forceActionError = action({
+  args: {},
+  handler: async (_, __) => {
+    throw new ConvexError("forced error data");
+  }
+});
+
+export const forceMutationError = mutation({
+  args: {},
+  handler: async (_, __) => {
+    throw new ConvexError("forced error data");
+  }
 });
 
 export const clearAll = mutation(async (ctx) => {
