@@ -23,7 +23,13 @@ import strikt.assertions.message
 class ConvexClientTest {
     companion object {
         const val QUERY_NAME = "foo"
-        val QUERY_ARGS = mapOf("a" to "b")
+        val QUERY_ARGS = mapOf(
+            "a" to "b",
+            "b" to false,
+            "c" to 42,
+            "d" to listOf(1, 2, 3),
+            "e" to mapOf("foo" to "bar", "baz" to 42)
+        )
     }
 
     private lateinit var ffiClient: FakeFfiClient
@@ -34,6 +40,7 @@ class ConvexClientTest {
         ffiClient = FakeFfiClient()
         client = ConvexClient("foo://bar") { ffiClient }
     }
+
     @Test
     fun `subscribe adds subscription`() = runTest {
         val flowResults = mutableListOf<Foo>()
@@ -48,6 +55,52 @@ class ConvexClientTest {
     }
 
     @Test
+    fun `subscribe properly encodes args`() = runTest {
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            client.subscribe<Foo>(QUERY_NAME, QUERY_ARGS).collect {}
+        }
+
+        val encodedArgs = ffiClient.subscriptionRequestsFor(QUERY_NAME).single().args
+        expectThat(encodedArgs["a"]!!).isEqualTo("\"b\"")
+        expectThat(encodedArgs["b"]!!).isEqualTo("false")
+        expectThat(encodedArgs["c"]!!).isEqualTo("42")
+        expectThat(encodedArgs["d"]!!).isEqualTo("[1,2,3]")
+        expectThat(encodedArgs["e"]!!).isEqualTo("{\"foo\":\"bar\",\"baz\":42}")
+    }
+
+    @Test
+    fun `mutation properly encodes args`() = runTest {
+        val job = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            client.mutation(QUERY_NAME, QUERY_ARGS)
+        }
+
+        job.join()
+
+        val encodedArgs = ffiClient.mutations[QUERY_NAME]!!
+        expectThat(encodedArgs["a"]!!).isEqualTo("\"b\"")
+        expectThat(encodedArgs["b"]!!).isEqualTo("false")
+        expectThat(encodedArgs["c"]!!).isEqualTo("42")
+        expectThat(encodedArgs["d"]!!).isEqualTo("[1,2,3]")
+        expectThat(encodedArgs["e"]!!).isEqualTo("{\"foo\":\"bar\",\"baz\":42}")
+    }
+
+    @Test
+    fun `action properly encodes args`() = runTest {
+        val job = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            client.action(QUERY_NAME, QUERY_ARGS)
+        }
+
+        job.join()
+
+        val encodedArgs = ffiClient.actions[QUERY_NAME]!!
+        expectThat(encodedArgs["a"]!!).isEqualTo("\"b\"")
+        expectThat(encodedArgs["b"]!!).isEqualTo("false")
+        expectThat(encodedArgs["c"]!!).isEqualTo("42")
+        expectThat(encodedArgs["d"]!!).isEqualTo("[1,2,3]")
+        expectThat(encodedArgs["e"]!!).isEqualTo("{\"foo\":\"bar\",\"baz\":42}")
+    }
+
+    @Test
     fun `subscribe can receive data via Flow`() = runTest {
         val flowResults = mutableListOf<Foo>()
 
@@ -56,7 +109,11 @@ class ConvexClientTest {
                 result.onSuccess { flowResults.add(it) }.onFailure { throw AssertionError() }
             }
         }
-        ffiClient.sendSubscriptionData(QUERY_NAME, QUERY_ARGS, Json.encodeToString(Foo(bar = "baz")))
+        ffiClient.sendSubscriptionData(
+            QUERY_NAME,
+            QUERY_ARGS,
+            Json.encodeToString(Foo(bar = "baz"))
+        )
 
         expectThat(flowResults).hasSize(1)
         expectThat(flowResults[0]).isEqualTo(Foo(bar = "baz"))
@@ -71,8 +128,16 @@ class ConvexClientTest {
                 result.onSuccess { flowResults.add(it) }.onFailure { throw AssertionError() }
             }
         }
-        ffiClient.sendSubscriptionData(QUERY_NAME, QUERY_ARGS, Json.encodeToString(Foo(bar = "baz")))
-        ffiClient.sendSubscriptionData(QUERY_NAME, QUERY_ARGS, Json.encodeToString(Foo(bar = "bar")))
+        ffiClient.sendSubscriptionData(
+            QUERY_NAME,
+            QUERY_ARGS,
+            Json.encodeToString(Foo(bar = "baz"))
+        )
+        ffiClient.sendSubscriptionData(
+            QUERY_NAME,
+            QUERY_ARGS,
+            Json.encodeToString(Foo(bar = "bar"))
+        )
 
         expectThat(flowResults).hasSize(2)
         expectThat(flowResults[0]).isEqualTo(Foo(bar = "baz"))
@@ -117,9 +182,17 @@ class ConvexClientTest {
                 flowResults.add(result)
             }
         }
-        ffiClient.sendSubscriptionData(QUERY_NAME, QUERY_ARGS, Json.encodeToString(Foo(bar = "baz")))
+        ffiClient.sendSubscriptionData(
+            QUERY_NAME,
+            QUERY_ARGS,
+            Json.encodeToString(Foo(bar = "baz"))
+        )
         ffiClient.sendSubscriptionError(QUERY_NAME, QUERY_ARGS, "an error broke out")
-        ffiClient.sendSubscriptionData(QUERY_NAME, QUERY_ARGS, Json.encodeToString(Foo(bar = "baz")))
+        ffiClient.sendSubscriptionData(
+            QUERY_NAME,
+            QUERY_ARGS,
+            Json.encodeToString(Foo(bar = "baz"))
+        )
 
         expectThat(flowResults)[0].isSuccess()
         expectThat(flowResults)[1].isFailure()

@@ -18,6 +18,8 @@ parking_lot = { version = "0.12.3" }
 async-once-cell = { version = "0.5.3" }
 serde_json = { version = "1.0.120" }
 
+[dev-dependencies]
+maplit = { version = "1" }
 
 [build-dependencies]
 uniffi = { version = "0.28", features = [ "build" ]}

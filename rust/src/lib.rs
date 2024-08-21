@@ -276,4 +276,77 @@ fn parse_json_args(raw_args: HashMap<String, String>) -> BTreeMap<String, Value>
         })
         .collect()
 }
+
 uniffi::include_scaffolding!("convex-mobile");
+
+#[cfg(test)]
+mod tests {
+    use maplit::btreemap;
+    use std::collections::HashMap;
+
+    use convex::Value;
+
+    use crate::parse_json_args;
+
+    #[test]
+    fn test_boolean_values_in_json_args() {
+        let mut m = HashMap::new();
+        m.insert(String::from("a"), String::from("false"));
+
+        assert_eq!(
+            parse_json_args(m).get(&String::from("a")),
+            Some(&Value::Boolean(false))
+        )
+    }
+
+    #[test]
+    fn test_number_values_in_json_args() {
+        let mut m = HashMap::new();
+        m.insert(String::from("a"), String::from("42"));
+        m.insert(String::from("b"), String::from("42.42"));
+
+        let result = parse_json_args(m);
+        assert_eq!(result.get(&String::from("a")), Some(&Value::Float64(42.0)));
+        assert_eq!(result.get(&String::from("b")), Some(&Value::Float64(42.42)))
+    }
+
+    #[test]
+    fn test_list_values_in_json_args() {
+        let mut m = HashMap::new();
+        m.insert(String::from("a"), String::from("[1,2,3]"));
+        m.insert(String::from("b"), String::from("[\"a\",\"b\",\"c\"]"));
+
+        let result = parse_json_args(m);
+        assert_eq!(
+            result.get(&String::from("a")),
+            Some(&Value::Array(vec![
+                Value::Float64(1.0),
+                Value::Float64(2.0),
+                Value::Float64(3.0)
+            ]))
+        );
+        assert_eq!(
+            result.get(&String::from("b")),
+            Some(&Value::Array(vec![
+                Value::String(String::from("a")),
+                Value::String(String::from("b")),
+                Value::String(String::from("c"))
+            ]))
+        );
+    }
+
+    #[test]
+    fn test_object_values_in_json_args() {
+        let mut m = HashMap::new();
+        m.insert(String::from("a"), String::from("{\"a\":1,\"b\":\"foo\"}"));
+
+        let result = parse_json_args(m);
+        assert_eq!(
+            result.get(&String::from("a")),
+            Some(&Value::Object(btreemap! {
+                String::from("a") => Value::Float64(1.0),
+                String::from("b") => Value::String(String::from("foo")),
+            }))
+        );
+    }
+}
