@@ -10,7 +10,6 @@ use parking_lot::Mutex;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::task::JoinError;
 
 #[derive(Debug, thiserror::Error)]
 enum ClientError {
@@ -26,23 +25,9 @@ enum ClientError {
 }
 
 impl From<anyhow::Error> for ClientError {
-    fn from(e: anyhow::Error) -> Self {
-        Self::InternalError { msg: e.to_string() }
-    }
-}
-
-impl From<JoinError> for ClientError {
-    fn from(_: JoinError) -> Self {
+    fn from(value: anyhow::Error) -> Self {
         Self::InternalError {
-            msg: "join error".to_string(),
-        }
-    }
-}
-
-impl From<serde_json::Error> for ClientError {
-    fn from(_: serde_json::Error) -> Self {
-        Self::InternalError {
-            msg: "JSON error".to_string(),
+            msg: value.to_string(),
         }
     }
 }
@@ -145,6 +130,15 @@ impl MobileConvexClient {
         args: HashMap<String, String>,
         subscriber: Arc<dyn QuerySubscriber>,
     ) -> Result<Arc<SubscriptionHandle>, ClientError> {
+        Ok(self.subscribe_internal(name, args, subscriber).await?)
+    }
+
+    async fn subscribe_internal(
+        &self,
+        name: String,
+        args: HashMap<String, String>,
+        subscriber: Arc<dyn QuerySubscriber>,
+    ) -> anyhow::Result<Arc<SubscriptionHandle>> {
         let mut client = self.connected_client().await?;
         debug!("New subscription");
         let mut subscription = client
@@ -182,14 +176,23 @@ impl MobileConvexClient {
         name: String,
         args: HashMap<String, String>,
     ) -> Result<String, ClientError> {
+        let result = self.internal_mutation(name, args).await?;
+
+        handle_direct_function_result(result)
+    }
+
+    async fn internal_mutation(
+        &self,
+        name: String,
+        args: HashMap<String, String>,
+    ) -> anyhow::Result<FunctionResult> {
         let mut client = self.connected_client().await?;
 
         let result = self
             .rt
             .spawn(async move { client.mutation(&name, parse_json_args(args)).await })
-            .await??;
-
-        handle_direct_function_result(result)
+            .await?;
+        result
     }
 
     /// Run an action on the Convex backend.
@@ -198,15 +201,22 @@ impl MobileConvexClient {
         name: String,
         args: HashMap<String, String>,
     ) -> Result<String, ClientError> {
-        let mut client = self.connected_client().await?;
         debug!("Running action: {}", name);
-        let result = self
-            .rt
-            .spawn(async move { client.action(&name, parse_json_args(args)).await })
-            .await??;
-
+        let result = self.internal_action(name, args).await?;
         debug!("Got action result: {:?}", result);
         handle_direct_function_result(result)
+    }
+
+    async fn internal_action(
+        &self,
+        name: String,
+        args: HashMap<String, String>,
+    ) -> anyhow::Result<FunctionResult> {
+        let mut client = self.connected_client().await?;
+        debug!("Running action: {}", name);
+        self.rt
+            .spawn(async move { client.action(&name, parse_json_args(args)).await })
+            .await?
     }
 
     /// Provide an OpenID Connect ID token to be associated with this client.
@@ -217,6 +227,10 @@ impl MobileConvexClient {
     /// Passing [None] for the token will disassociate a previous token, effectively returning to a
     /// logged out state.
     pub async fn set_auth(&self, token: Option<String>) -> Result<(), ClientError> {
+        Ok(self.internal_set_auth(token).await?)
+    }
+
+    async fn internal_set_auth(&self, token: Option<String>) -> anyhow::Result<()> {
         let mut client = self.connected_client().await?;
         self.rt
             .spawn(async move { client.set_auth(token).await })
@@ -243,7 +257,8 @@ fn parse_json_args(raw_args: HashMap<String, String>) -> BTreeMap<String, Value>
 
 fn handle_direct_function_result(result: FunctionResult) -> Result<String, ClientError> {
     match result {
-        FunctionResult::Value(v) => Ok(serde_json::ser::to_string(&serde_json::Value::from(v))?),
+        FunctionResult::Value(v) => serde_json::to_string(&serde_json::Value::from(v))
+            .map_err(|e| ClientError::InternalError { msg: e.to_string() }),
         FunctionResult::ConvexError(e) => Err(ClientError::ConvexError {
             data: serde_json::ser::to_string(&serde_json::Value::from(e.data)).unwrap(),
         }),
