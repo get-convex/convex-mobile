@@ -34,8 +34,11 @@ open class ConvexClient(
      * Subscribes to the query with the given [name] and converts data from the subscription into a
      * [Flow] of [Result]s containing [T].
      *
-     * Will cancel the upstream subscription if whatever is subscribed to the [Flow] stops
-     * listening.
+     * If there is an error generating [T], the [Result] will contain either a [ConvexError] (for
+     * application specific errors) or a [ServerError].
+     *
+     * The upstream Convex subscription will be canceled if whatever is subscribed to the [Flow]
+     * stops listening.
      *
      * @param T result data type that will be decoded from JSON
      */
@@ -62,7 +65,15 @@ open class ConvexClient(
                 }
 
                 override fun onError(message: String, value: String?) {
-                    trySend(Result.failure(ConvexException(message)))
+                    println("got an error, message: $message, value: $value")
+                    if (value == null) {
+                        // This is a server error of some sort.
+                        trySend(Result.failure(ServerError(message)))
+                    } else {
+                        // An application specific error thrown in a Convex backend function.
+                        trySend(Result.failure(ConvexError(message, value)))
+                    }
+
                 }
             })
 
@@ -87,7 +98,7 @@ open class ConvexClient(
                 args?.mapValues { it.value.toJsonElement().toString() } ?: mapOf())
             return jsonApi.decodeFromString<T>(jsonData)
         } catch (e: ClientException) {
-            throw ConvexException.from(e)
+            throw e.toError()
         }
     }
 
@@ -121,7 +132,7 @@ open class ConvexClient(
                 args?.mapValues { it.value.toJsonElement().toString() } ?: mapOf())
             return jsonApi.decodeFromString<T>(jsonData)
         } catch (e: ClientException) {
-            throw ConvexException.from(e)
+            throw e.toError()
         }
     }
 

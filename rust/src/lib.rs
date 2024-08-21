@@ -14,35 +14,36 @@ use std::sync::Arc;
 use tokio::task::JoinError;
 
 #[derive(Debug, thiserror::Error)]
-#[error("{e:?}")]
-struct ClientError {
-    e: anyhow::Error,
-}
-
-impl ClientError {
-    fn message(&self) -> String {
-        self.e.to_string()
-    }
+enum ClientError {
+    /// An error that occurs internally here in the mobile Convex client.
+    #[error("InternalError: {msg}")]
+    InternalError { msg: String },
+    /// An application specific error that is thrown in a remote Convex backend function.
+    #[error("ConvexError: {data}")]
+    ConvexError { data: String },
+    /// An unexpected server error that is thrown in a remote Convex backend function.
+    #[error("ServerError: {msg}")]
+    ServerError { msg: String },
 }
 
 impl From<anyhow::Error> for ClientError {
     fn from(e: anyhow::Error) -> Self {
-        Self { e }
+        Self::InternalError { msg: e.to_string() }
     }
 }
 
 impl From<JoinError> for ClientError {
     fn from(_: JoinError) -> Self {
-        Self {
-            e: anyhow!("join error"),
+        Self::InternalError {
+            msg: "join error".to_string(),
         }
     }
 }
 
 impl From<serde_json::Error> for ClientError {
     fn from(_: serde_json::Error) -> Self {
-        Self {
-            e: anyhow!("JSON error"),
+        Self::InternalError {
+            msg: "JSON error".to_string(),
         }
     }
 }
@@ -209,7 +210,9 @@ impl MobileConvexClient {
             FunctionResult::Value(v) => {
                 Ok(serde_json::ser::to_string(&serde_json::Value::from(v))?)
             }
-            FunctionResult::ConvexError(e) => Err(anyhow!("ConvexError in mutation: {e}").into()),
+            FunctionResult::ConvexError(e) => Err(ClientError::ConvexError {
+                data: serde_json::ser::to_string(&serde_json::Value::from(e.data)).unwrap(),
+            }),
             FunctionResult::ErrorMessage(msg) => {
                 Err(anyhow!("ErrorMessage for mutation: {msg}").into())
             }
@@ -234,7 +237,9 @@ impl MobileConvexClient {
             FunctionResult::Value(v) => {
                 Ok(serde_json::ser::to_string(&serde_json::Value::from(v))?)
             }
-            FunctionResult::ConvexError(e) => Err(anyhow!("ConvexError in action: {e}").into()),
+            FunctionResult::ConvexError(e) => Err(ClientError::ConvexError {
+                data: serde_json::ser::to_string(&serde_json::Value::from(e.data)).unwrap(),
+            }),
             FunctionResult::ErrorMessage(msg) => {
                 Err(anyhow!("ErrorMessage for action: {msg}").into())
             }

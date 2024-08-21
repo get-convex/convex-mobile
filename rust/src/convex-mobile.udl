@@ -1,8 +1,10 @@
 namespace convexmobile {};
 
-[Traits=(Debug)]
+[Error]
 interface ClientError {
-    string message();
+    InternalError(string msg);
+    ConvexError(string data);
+    ServerError(string msg);
 };
 
 interface MobileConvexClient {

@@ -8,6 +8,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Before
@@ -33,6 +34,44 @@ class ConvexClientInstrumentationTest {
             clientA.subscribe<List<Message>>("messages:list").first().getOrNull()
         assertNotNull(messages)
         assertEquals(messages, listOf<Message>())
+    }
+
+    @Test
+    fun convex_error_in_subscription() = runTest {
+        val clientA = ConvexClient(DEPLOYMENT_URL)
+        val observedError =
+            clientA.subscribe<List<Message>>("messages:list", mapOf("forceError" to true)).first()
+                .exceptionOrNull() as ConvexError?
+        assertNotNull(observedError)
+        assertEquals("forced error data", Json.decodeFromString<String>(observedError!!.data))
+    }
+
+    @Test
+    fun convex_error_in_action() = runTest {
+        val clientA = ConvexClient(DEPLOYMENT_URL)
+        var caught = false
+        try {
+            clientA.action("messages:forceActionError")
+        } catch (e: ConvexError) {
+            caught = true
+            assertEquals("forced error data", Json.decodeFromString<String>(e.data))
+        } finally {
+            assertEquals(true, caught)
+        }
+    }
+
+    @Test
+    fun convex_error_in_mutation() = runTest {
+        val clientA = ConvexClient(DEPLOYMENT_URL)
+        var caught = false
+        try {
+            clientA.mutation("messages:forceMutationError")
+        } catch (e: ConvexError) {
+            caught = true
+            assertEquals("forced error data", Json.decodeFromString<String>(e.data))
+        } finally {
+            assertEquals(true, caught)
+        }
     }
 
     @Test

@@ -160,7 +160,7 @@ class ConvexClientTest {
     }
 
     @Test
-    fun `subscribe Flow can receive error`() = runTest {
+    fun `subscribe Flow can receive ServerError`() = runTest {
         var observedError: Throwable? = null
 
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
@@ -170,7 +170,30 @@ class ConvexClientTest {
         }
         ffiClient.sendSubscriptionError(QUERY_NAME, QUERY_ARGS, "an error broke out")
 
-        expectThat(observedError).isA<ConvexException>().message.isEqualTo("an error broke out")
+        expectThat(observedError).isA<ServerError>().message.isEqualTo("an error broke out")
+    }
+
+
+    @Test
+    fun `subscribe Flow can receive ConvexError`() = runTest {
+        var observedError: Throwable? = null
+
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            client.subscribe<Foo>(QUERY_NAME, QUERY_ARGS).collect { result ->
+                result.onSuccess { throw AssertionError() }.onFailure { observedError = it }
+            }
+        }
+        // Including errorData triggers a ConvexError.
+        ffiClient.sendSubscriptionError(
+            QUERY_NAME,
+            QUERY_ARGS,
+            "an error broke out",
+            errorData = "some error data"
+        )
+
+        expectThat(observedError).isA<ConvexError>().message.isEqualTo("an error broke out")
+        expectThat(observedError).isA<ConvexError>().get(ConvexError::data)
+            .isEqualTo("some error data")
     }
 
     @Test

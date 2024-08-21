@@ -51,10 +51,18 @@ class FakeFfiClient : MobileConvexClientInterface {
             args.mapValues { it.value.toJsonElement().toString() })]!!.onUpdate(data)
     }
 
-    fun sendSubscriptionError(name: String, args: Map<String, Any>, errorMessage: String) {
+    fun sendSubscriptionError(
+        name: String,
+        args: Map<String, Any>,
+        errorMessage: String,
+        errorData: String? = null
+    ) {
         subscriptions[CallKey(
             name,
-            args.mapValues { it.value.toJsonElement().toString() })]!!.onError(errorMessage, null)
+            args.mapValues { it.value.toJsonElement().toString() })]!!.onError(
+            errorMessage,
+            errorData
+        )
     }
 
     fun hasSubscriptionFor(name: String, args: Map<String, Any>) = subscriptions.contains(
