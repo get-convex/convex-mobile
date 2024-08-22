@@ -1,0 +1,38 @@
+namespace convexmobile {};
+
+[Error]
+interface ClientError {
+    InternalError(string msg);
+    ConvexError(string data);
+    ServerError(string msg);
+};
+
+interface MobileConvexClient {
+    constructor(string deployment_url);
+
+    [Async, Throws=ClientError]
+    string query(string name, record<string, string> args);
+
+    [Async, Throws=ClientError]
+    SubscriptionHandle subscribe(string name, record<string, string> args, QuerySubscriber subscriber);
+
+    [Async, Throws=ClientError]
+    string mutation(string name, record<string, string> args);
+
+    [Async, Throws=ClientError]
+    string action(string name, record<string, string> args);
+
+    [Async, Throws=ClientError]
+    void set_auth(string? token);
+};
+
+interface SubscriptionHandle {
+    [Self=ByArc]
+    void cancel();
+};
+
+[Trait, WithForeign]
+interface QuerySubscriber {
+    void on_update(string value);
+    void on_error(string message, string? value);
+};
