@@ -12,6 +12,7 @@ class FakeFfiClient : MobileConvexClientInterface {
     val subscriptions = mutableMapOf<CallKey, QuerySubscriber>()
     val actions = mutableMapOf<String, Map<String, String>>()
     val mutations = mutableMapOf<String, Map<String, String>>()
+    var receivedAuthToken: String? = null
 
     override suspend fun action(name: String, args: Map<String, String>): String {
         actions[name] = args
@@ -28,7 +29,7 @@ class FakeFfiClient : MobileConvexClientInterface {
     }
 
     override suspend fun setAuth(token: String?) {
-        TODO("Not yet implemented")
+        receivedAuthToken = token
     }
 
     override suspend fun subscribe(

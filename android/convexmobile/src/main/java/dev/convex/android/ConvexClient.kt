@@ -169,7 +169,7 @@ class ConvexClientWithAuth<T>(
     val authState: StateFlow<AuthState<T>> = _authState
 
     /**
-     * Triggers a login flow and updates the [authState].
+     * Triggers a UI driven login flow and updates the [authState].
      *
      * The [authState] is set to [AuthState.AuthLoading] immediately upon calling this method and
      * will change to either [AuthState.Authenticated] or [AuthState.Unauthenticated] depending on
@@ -178,6 +178,31 @@ class ConvexClientWithAuth<T>(
     suspend fun login(context: Context): Result<T> {
         _authState.emit(AuthState.AuthLoading())
         val result = authProvider.login(context)
+        return result.onSuccess {
+            ffiClient.setAuth(authProvider.extractIdToken(it))
+            _authState.emit(AuthState.Authenticated(it))
+        }
+            .onFailure { _authState.emit(AuthState.Unauthenticated()) }
+    }
+
+    /**
+     * Triggers a cached, UI-less re-authentication flow using previously stored credentials and
+     * updates the [authState].
+     *
+     * If no credentials were previously stored, or if there is an error reusing stored credentials,
+     * the resulting [authState] will be [AuthState.Unauthenticated]. If supported by the
+     * [AuthProvider], a call to [login] should store another set of credentials upon successful
+     * authentication.
+     *
+     * The [authState] is set to [AuthState.AuthLoading] immediately upon calling this method and
+     * will change to either [AuthState.Authenticated] or [AuthState.Unauthenticated] depending on
+     * the result.
+     *
+     * @throws NotImplementedError if the [AuthProvider] doesn't support [loginFromCache]
+     */
+    suspend fun loginFromCache() : Result<T> {
+        _authState.emit(AuthState.AuthLoading())
+        val result = authProvider.loginFromCache()
         return result.onSuccess {
             ffiClient.setAuth(authProvider.extractIdToken(it))
             _authState.emit(AuthState.Authenticated(result.getOrThrow()))
@@ -203,8 +228,6 @@ class ConvexClientWithAuth<T>(
 /**
  * Authentication states that can be experienced when using an [AuthProvider] with
  * [ConvexClientWithAuth].
- *
- * @param T the type of data included upon a successful authentication attempt
  */
 sealed class AuthState<T> {
     /**
@@ -234,13 +257,25 @@ interface AuthProvider<T> {
     /**
      * Trigger a login flow, which might launch a new UI/screen.
      *
+     * @param context typically an Activity which can be used to launch login UI
      * @return a [Result] containing [T] upon successful login
      */
     suspend fun login(context: Context): Result<T>
 
     /**
+     * Trigger a cached, UI-less re-authentication using stored credentials from a previous [login].
+     *
+     * @throws NotImplementedError if this provider doesn't support [loginFromCache]
+     * @return a [Result] containing [T] upon successful re-auth
+     */
+    suspend fun loginFromCache() : Result<T> {
+        throw NotImplementedError("$this does not support loginFromCache")
+    }
+
+    /**
      * Trigger a logout flow, which might launch a new screen/UI.
      *
+     * @param context typically an Activity which can be used to launch logout UI
      * @return a [Result] which indicates whether logout was successful
      */
     suspend fun logout(context: Context): Result<Void?>
