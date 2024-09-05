@@ -8,10 +8,32 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.serialization.Contextual
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.modules.SerializersModule
+import kotlinx.serialization.modules.contextual
 
 @PublishedApi
-internal val jsonApi = Json { ignoreUnknownKeys = true }
+internal val jsonApi = Json {
+    ignoreUnknownKeys = true
+    allowSpecialFloatingPointValues = true
+    // This allows Int, Long, Float or Double values anywhere to be annotated with @ConvexNum which
+    // knows the special JSON format that Convex uses for those values.
+    serializersModule =
+        SerializersModule {
+            contextual(Int64ToIntDecoder)
+            contextual(Int64ToLongDecoder)
+            contextual(Float64ToFloatDecoder)
+            contextual(Float64ToDoubleDecoder)
+        }
+}
+
+typealias Int64 = @Serializable(Int64ToLongDecoder::class) Long
+typealias Float64 = @Serializable(Float64ToDoubleDecoder::class) Double
+typealias Int32 = @Serializable(Int64ToIntDecoder::class) Int
+typealias Float32 = @Serializable(Float64ToFloatDecoder::class) Float
+typealias ConvexNum = Contextual
 
 /**
  * A client API for interacting with a Convex backend.
@@ -65,7 +87,6 @@ open class ConvexClient(
                 }
 
                 override fun onError(message: String, value: String?) {
-                    println("got an error, message: $message, value: $value")
                     if (value == null) {
                         // This is a server error of some sort.
                         trySend(Result.failure(ServerError(message)))
@@ -96,7 +117,14 @@ open class ConvexClient(
         try {
             val jsonData = ffiClient.action(name,
                 args?.mapValues { it.value.toJsonElement().toString() } ?: mapOf())
-            return jsonApi.decodeFromString<T>(jsonData)
+            try {
+                return jsonApi.decodeFromString<T>(jsonData)
+            } catch (e: Throwable) {
+                throw InternalError(
+                    "Failed to decode JSON, ensure you're using types compatible with Convex in your return value",
+                    e
+                )
+            }
         } catch (e: ClientException) {
             throw e.toError()
         }
@@ -130,7 +158,14 @@ open class ConvexClient(
         try {
             val jsonData = ffiClient.mutation(name,
                 args?.mapValues { it.value.toJsonElement().toString() } ?: mapOf())
-            return jsonApi.decodeFromString<T>(jsonData)
+            try {
+                return jsonApi.decodeFromString<T>(jsonData)
+            } catch (e: Throwable) {
+                throw InternalError(
+                    "Failed to decode JSON, ensure you're using types compatible with Convex in your return value",
+                    e
+                )
+            }
         } catch (e: ClientException) {
             throw e.toError()
         }
@@ -200,7 +235,7 @@ class ConvexClientWithAuth<T>(
      *
      * @throws NotImplementedError if the [AuthProvider] doesn't support [loginFromCache]
      */
-    suspend fun loginFromCache() : Result<T> {
+    suspend fun loginFromCache(): Result<T> {
         _authState.emit(AuthState.AuthLoading())
         val result = authProvider.loginFromCache()
         return result.onSuccess {
@@ -268,7 +303,7 @@ interface AuthProvider<T> {
      * @throws NotImplementedError if this provider doesn't support [loginFromCache]
      * @return a [Result] containing [T] upon successful re-auth
      */
-    suspend fun loginFromCache() : Result<T> {
+    suspend fun loginFromCache(): Result<T> {
         throw NotImplementedError("$this does not support loginFromCache")
     }
 

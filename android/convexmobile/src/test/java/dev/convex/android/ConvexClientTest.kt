@@ -63,9 +63,9 @@ class ConvexClientTest {
         val encodedArgs = ffiClient.subscriptionRequestsFor(QUERY_NAME).single().args
         expectThat(encodedArgs["a"]!!).isEqualTo("\"b\"")
         expectThat(encodedArgs["b"]!!).isEqualTo("false")
-        expectThat(encodedArgs["c"]!!).isEqualTo("42")
-        expectThat(encodedArgs["d"]!!).isEqualTo("[1,2,3]")
-        expectThat(encodedArgs["e"]!!).isEqualTo("{\"foo\":\"bar\",\"baz\":42}")
+        expectThat(encodedArgs["c"]!!).isEqualTo("{\"\$integer\":\"KgAAAAAAAAA=\"}")
+        expectThat(encodedArgs["d"]!!).isEqualTo("[{\"\$integer\":\"AQAAAAAAAAA=\"},{\"\$integer\":\"AgAAAAAAAAA=\"},{\"\$integer\":\"AwAAAAAAAAA=\"}]")
+        expectThat(encodedArgs["e"]!!).isEqualTo("{\"foo\":\"bar\",\"baz\":{\"\$integer\":\"KgAAAAAAAAA=\"}}")
     }
 
     @Test
@@ -79,9 +79,9 @@ class ConvexClientTest {
         val encodedArgs = ffiClient.mutations[QUERY_NAME]!!
         expectThat(encodedArgs["a"]!!).isEqualTo("\"b\"")
         expectThat(encodedArgs["b"]!!).isEqualTo("false")
-        expectThat(encodedArgs["c"]!!).isEqualTo("42")
-        expectThat(encodedArgs["d"]!!).isEqualTo("[1,2,3]")
-        expectThat(encodedArgs["e"]!!).isEqualTo("{\"foo\":\"bar\",\"baz\":42}")
+        expectThat(encodedArgs["c"]!!).isEqualTo("{\"\$integer\":\"KgAAAAAAAAA=\"}")
+        expectThat(encodedArgs["d"]!!).isEqualTo("[{\"\$integer\":\"AQAAAAAAAAA=\"},{\"\$integer\":\"AgAAAAAAAAA=\"},{\"\$integer\":\"AwAAAAAAAAA=\"}]")
+        expectThat(encodedArgs["e"]!!).isEqualTo("{\"foo\":\"bar\",\"baz\":{\"\$integer\":\"KgAAAAAAAAA=\"}}")
     }
 
     @Test
@@ -95,9 +95,9 @@ class ConvexClientTest {
         val encodedArgs = ffiClient.actions[QUERY_NAME]!!
         expectThat(encodedArgs["a"]!!).isEqualTo("\"b\"")
         expectThat(encodedArgs["b"]!!).isEqualTo("false")
-        expectThat(encodedArgs["c"]!!).isEqualTo("42")
-        expectThat(encodedArgs["d"]!!).isEqualTo("[1,2,3]")
-        expectThat(encodedArgs["e"]!!).isEqualTo("{\"foo\":\"bar\",\"baz\":42}")
+        expectThat(encodedArgs["c"]!!).isEqualTo("{\"\$integer\":\"KgAAAAAAAAA=\"}")
+        expectThat(encodedArgs["d"]!!).isEqualTo("[{\"\$integer\":\"AQAAAAAAAAA=\"},{\"\$integer\":\"AgAAAAAAAAA=\"},{\"\$integer\":\"AwAAAAAAAAA=\"}]")
+        expectThat(encodedArgs["e"]!!).isEqualTo("{\"foo\":\"bar\",\"baz\":{\"\$integer\":\"KgAAAAAAAAA=\"}}")
     }
 
     @Test

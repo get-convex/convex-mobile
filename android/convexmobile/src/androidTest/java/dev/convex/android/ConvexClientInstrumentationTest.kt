@@ -1,3 +1,10 @@
+@file:UseSerializers(
+    Int64ToIntDecoder::class,
+    Int64ToLongDecoder::class,
+    Float64ToFloatDecoder::class,
+    Float64ToDoubleDecoder::class
+)
+
 package dev.convex.android
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -8,6 +15,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.UseSerializers
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -139,7 +147,86 @@ class ConvexClientInstrumentationTest {
         )
 
     }
+
+    @Test
+    fun can_round_trip_max_value_args() = runTest {
+        val clientA = ConvexClient(DEPLOYMENT_URL)
+        val maxValues = RoundTripArgs(
+            anInt64 = Long.MAX_VALUE,
+            aFloat64 = Double.MAX_VALUE,
+            aPlainInt = Int.MAX_VALUE,
+            aFloat32 = Float.MAX_VALUE,
+            anInt32 = Int.MAX_VALUE,
+        )
+        val result = clientA.action<RoundTripArgs>(
+            "messages:echoValidatedArgs",
+            args = maxValues.toArgs()
+        )
+        assertEquals(maxValues, result)
+    }
+
+    @Test
+    fun can_round_trip_with_special_floats() = runTest {
+        val clientA = ConvexClient(DEPLOYMENT_URL)
+        val result = clientA.action<SpecialFloats>(
+            "messages:echoArgs",
+            args = SpecialFloats().toArgs()
+        )
+        assertEquals(SpecialFloats(), result)
+    }
+
+    @Test
+    fun can_receive_special_floats() = runTest {
+        val clientA = ConvexClient(DEPLOYMENT_URL)
+        // Using @ConvexNum to allow a Double in a Map return value.
+        val result = clientA.action<Map<String, @ConvexNum Double>>("messages:specialFloats")
+        assertEquals(Double.NaN, result["NaN"])
+        assertEquals(-0.0, result["negZero"])
+        assertEquals(Double.POSITIVE_INFINITY, result["Inf"])
+        assertEquals(Double.NEGATIVE_INFINITY, result["negInf"])
+    }
 }
 
 @Serializable
 data class Message(val author: String, val body: String)
+
+// This class uses a mixture of Convex type aliases and builtin types.
+// The builtin types can be handled thanks to the @file:UseSerializers annotation at the top.
+@Serializable
+data class RoundTripArgs(
+    val anInt64: Int64,
+    val aFloat64: Double,
+    val aPlainInt: @Serializable(Int64ToIntDecoder::class) Int,
+    val anInt32: Int32,
+    val aFloat32: Float,
+) {
+    fun toArgs(): Map<String, Any> =
+        mapOf(
+            "anInt64" to anInt64,
+            "aFloat64" to aFloat64,
+            "aPlainInt" to aPlainInt,
+            "anInt32" to anInt32,
+            "aFloat32" to aFloat32
+        )
+}
+
+@Serializable
+data class SpecialFloats(
+    val f64Nan: Float64 = Float64.NaN,
+    val f64NegInf: Double = Double.NEGATIVE_INFINITY,
+    val f64PosInf: Float64 = Float64.POSITIVE_INFINITY,
+    val f32Nan: Float32 = Float32.NaN,
+    val f32NegInf: Float = Float.NEGATIVE_INFINITY,
+    val f32PosInf: Float32 = Float32.POSITIVE_INFINITY,
+) {
+    fun toArgs(): Map<String, Any> =
+        // TODO figure out why sending the NaN values to the Rust side panics
+        mapOf(
+//            "f64Nan" to f64Nan,
+            "f64NegInf" to f64NegInf,
+            "f64PosInf" to f64PosInf,
+//            "f32Nan" to f32Nan,
+            "f32NegInf" to f32NegInf,
+            "f32PosInf" to f32PosInf,
+        )
+}

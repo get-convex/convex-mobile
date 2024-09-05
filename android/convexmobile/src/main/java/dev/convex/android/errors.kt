@@ -36,7 +36,7 @@ class ConvexError(message: String, val data: String, cause: Exception? = null) :
 /**
  * An exception thrown when an internal error occurs in the mobile Convex client code.
  */
-class InternalError(message: String, cause: Exception? = null) : Exception(message, cause) {
+class InternalError(message: String, cause: Throwable? = null) : Exception(message, cause) {
     companion object {
         fun from(exception: ClientException.InternalException): InternalError =
             InternalError(exception.msg, exception)
