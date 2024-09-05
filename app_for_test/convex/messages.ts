@@ -37,6 +37,32 @@ export const forceMutationError = mutation({
   }
 });
 
+export const echoValidatedArgs = action({
+  args: {
+    anInt64: v.int64(),
+    aFloat64: v.number(),
+    aPlainInt: v.int64(),
+    aFloat32: v.number(),
+    anInt32: v.int64(),
+  },
+  handler: async (_, args) => {
+    return args
+  }
+});
+
+export const echoArgs = action({
+  handler: async (_, args) => {
+    return args
+  }
+});
+
+export const specialFloats = action({
+  args: {},
+  handler: async (_, __) => {
+    return {"NaN": NaN, "negZero": -0, "Inf": Infinity, "negInf": -Infinity};
+  }
+});
+
 export const clearAll = mutation(async (ctx) => {
     for (const table of Object.keys(schema.tables)) {
       const docs = await ctx.db.query(table as any).collect();
