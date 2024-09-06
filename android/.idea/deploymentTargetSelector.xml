@@ -8,9 +8,6 @@
       <SelectionState runConfigName="ConvexClientInstrumentationTest">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
-      <SelectionState runConfigName="can_round_trip_nulls()">
-        <option name="selectionMode" value="DROPDOWN" />
-      </SelectionState>
       <SelectionState runConfigName="ConvexClientWithAuthTest">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
