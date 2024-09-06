@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.UseSerializers
 import kotlinx.serialization.json.Json
@@ -151,14 +152,14 @@ class ConvexClientInstrumentationTest {
     @Test
     fun can_round_trip_max_value_args() = runTest {
         val clientA = ConvexClient(DEPLOYMENT_URL)
-        val maxValues = RoundTripArgs(
+        val maxValues = NumericValues(
             anInt64 = Long.MAX_VALUE,
             aFloat64 = Double.MAX_VALUE,
-            aPlainInt = Int.MAX_VALUE,
+            jsNumber = Double.MAX_VALUE,
             aFloat32 = Float.MAX_VALUE,
             anInt32 = Int.MAX_VALUE,
         )
-        val result = clientA.action<RoundTripArgs>(
+        val result = clientA.action<NumericValues>(
             "messages:echoValidatedArgs",
             args = maxValues.toArgs()
         )
@@ -196,6 +197,21 @@ class ConvexClientInstrumentationTest {
         assertEquals(Double.POSITIVE_INFINITY, result["Inf"])
         assertEquals(Double.NEGATIVE_INFINITY, result["negInf"])
     }
+
+    @Test
+    fun can_receive_numbers() = runTest {
+        val clientA = ConvexClient(DEPLOYMENT_URL)
+        val result = clientA.action<NumericValues>("messages:numbers")
+        val expected = NumericValues(
+            anInt64 = 100,
+            aFloat64 = 100.0,
+            jsNumber = 100.0,
+            anInt32 = 100,
+            aFloat32 = 100.0f
+        )
+        assertEquals(expected, result)
+        assertEquals(100, result.aPlainInt)
+    }
 }
 
 @Serializable
@@ -204,10 +220,10 @@ data class Message(val author: String, val body: String)
 // This class uses a mixture of Convex type aliases and builtin types.
 // The builtin types can be handled thanks to the @file:UseSerializers annotation at the top.
 @Serializable
-data class RoundTripArgs(
+data class NumericValues(
     val anInt64: Int64,
-    val aFloat64: Double,
-    val aPlainInt: @Serializable(Int64ToIntDecoder::class) Int,
+    val aFloat64: @Serializable(Float64ToDoubleDecoder::class) Double,
+    @SerialName("aPlainInt") private val jsNumber: Double,
     val anInt32: Int32,
     val aFloat32: Float,
 ) {
@@ -215,10 +231,13 @@ data class RoundTripArgs(
         mapOf(
             "anInt64" to anInt64,
             "aFloat64" to aFloat64,
-            "aPlainInt" to aPlainInt,
+            "aPlainInt" to jsNumber,
             "anInt32" to anInt32,
             "aFloat32" to aFloat32
         )
+
+    // Expose the JavaScript number value as an Int.
+    val aPlainInt get() = jsNumber.toInt()
 }
 
 @Serializable
