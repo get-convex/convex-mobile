@@ -5,16 +5,16 @@
       <SelectionState runConfigName="lib">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
-      <SelectionState runConfigName="can_handle_special_floats()">
-        <option name="selectionMode" value="DROPDOWN" />
-      </SelectionState>
       <SelectionState runConfigName="ConvexClientInstrumentationTest">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
-      <SelectionState runConfigName="Tests in 'dev.convex.android'">
+      <SelectionState runConfigName="can_round_trip_nulls()">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
-      <SelectionState runConfigName="can_round_trip_nulls()">
+      <SelectionState runConfigName="ConvexClientWithAuthTest">
+        <option name="selectionMode" value="DROPDOWN" />
+      </SelectionState>
+      <SelectionState runConfigName="empty_subscribe()">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
     </selectionStates>

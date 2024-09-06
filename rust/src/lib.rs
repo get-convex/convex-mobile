@@ -1,9 +1,11 @@
+#[cfg(debug_assertions)]
 use android_logger::Config;
 use async_once_cell::OnceCell;
 use convex::{ConvexClient, FunctionResult, Value};
 use futures::channel::oneshot::{self, Sender};
 use futures::{pin_mut, select_biased, FutureExt, StreamExt};
 use log::debug;
+#[cfg(debug_assertions)]
 use log::LevelFilter;
 use parking_lot::Mutex;
 
@@ -73,6 +75,7 @@ impl MobileConvexClient {
     /// The internal [ConvexClient] doesn't get created/connected until the first public method call that
     /// hits the Convex backend.
     pub fn new(deployment_url: String) -> MobileConvexClient {
+        #[cfg(debug_assertions)]
         android_logger::init_once(Config::default().with_max_level(LevelFilter::Trace));
         let rt = tokio::runtime::Builder::new_multi_thread()
             .enable_all()

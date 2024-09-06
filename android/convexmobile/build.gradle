@@ -46,6 +46,7 @@ cargo {
     module = "../../rust"
     libname = "convexmobile"
     targets = ["arm64", "arm"]
+    profile = "release"
 }
 
 tasks.whenTaskAdded { task ->
