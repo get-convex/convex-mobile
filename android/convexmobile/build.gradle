@@ -102,7 +102,8 @@ publishing {
                 }
 
                 scm {
-                    connection = 'scm:git:git://example.com/unreleased.git'
+                    connection = 'scm:git:git://github.com/get-convex/convex-mobile.git'
+                    developerConnection = 'scm:git:ssh://git@github.com:get-convex/convex-mobile.git'
                     url = 'https://www.convex.dev/'
                 }
             }
