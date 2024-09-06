@@ -80,7 +80,7 @@ publishing {
         release(MavenPublication) {
             groupId = 'dev.convex'
             artifactId = 'android-convexmobile'
-            version = '0.4.0'
+            version = '0.4.1'
             pom {
                 name = 'Convex for Android'
                 description = 'Android client library for building apps with convex.dev'
