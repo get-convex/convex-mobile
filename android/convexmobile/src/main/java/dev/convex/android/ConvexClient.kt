@@ -65,7 +65,7 @@ open class ConvexClient(
      * @param T result data type that will be decoded from JSON
      */
     suspend inline fun <reified T> subscribe(
-        name: String, args: Map<String, Any>? = null
+        name: String, args: Map<String, Any?>? = null
     ): Flow<Result<T>> = callbackFlow {
         val subscription = ffiClient.subscribe(
             name,
@@ -113,7 +113,7 @@ open class ConvexClient(
      *
      * @param T data type that will be decoded from JSON and returned
      */
-    suspend inline fun <reified T> action(name: String, args: Map<String, Any>? = null): T {
+    suspend inline fun <reified T> action(name: String, args: Map<String, Any?>? = null): T {
         try {
             val jsonData = ffiClient.action(name,
                 args?.mapValues { it.value.toJsonElement().toString() } ?: mapOf())
@@ -140,7 +140,7 @@ open class ConvexClient(
      * return type.
      */
     @JvmName("voidAction")
-    suspend fun action(name: String, args: Map<String, Any>? = null) {
+    suspend fun action(name: String, args: Map<String, Any?>? = null) {
         action<Unit?>(name = name, args = args)
     }
 
@@ -154,7 +154,7 @@ open class ConvexClient(
      *
      * @param T data type that will be decoded from JSON and returned
      */
-    suspend inline fun <reified T> mutation(name: String, args: Map<String, Any>? = null): T {
+    suspend inline fun <reified T> mutation(name: String, args: Map<String, Any?>? = null): T {
         try {
             val jsonData = ffiClient.mutation(name,
                 args?.mapValues { it.value.toJsonElement().toString() } ?: mapOf())
@@ -181,7 +181,7 @@ open class ConvexClient(
      * return type.
      */
     @JvmName("voidMutation")
-    suspend fun mutation(name: String, args: Map<String, Any>? = null) {
+    suspend fun mutation(name: String, args: Map<String, Any?>? = null) {
         mutation<Unit?>(name = name, args = args)
     }
 }

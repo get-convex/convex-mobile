@@ -28,7 +28,8 @@ class ConvexClientTest {
             "b" to false,
             "c" to 42,
             "d" to listOf(1, 2, 3),
-            "e" to mapOf("foo" to "bar", "baz" to 42)
+            "e" to mapOf("foo" to "bar", "baz" to 42),
+            "f" to null
         )
     }
 
@@ -66,6 +67,7 @@ class ConvexClientTest {
         expectThat(encodedArgs["c"]!!).isEqualTo("{\"\$integer\":\"KgAAAAAAAAA=\"}")
         expectThat(encodedArgs["d"]!!).isEqualTo("[{\"\$integer\":\"AQAAAAAAAAA=\"},{\"\$integer\":\"AgAAAAAAAAA=\"},{\"\$integer\":\"AwAAAAAAAAA=\"}]")
         expectThat(encodedArgs["e"]!!).isEqualTo("{\"foo\":\"bar\",\"baz\":{\"\$integer\":\"KgAAAAAAAAA=\"}}")
+        expectThat(encodedArgs["f"]!!).isEqualTo("null")
     }
 
     @Test
@@ -82,6 +84,7 @@ class ConvexClientTest {
         expectThat(encodedArgs["c"]!!).isEqualTo("{\"\$integer\":\"KgAAAAAAAAA=\"}")
         expectThat(encodedArgs["d"]!!).isEqualTo("[{\"\$integer\":\"AQAAAAAAAAA=\"},{\"\$integer\":\"AgAAAAAAAAA=\"},{\"\$integer\":\"AwAAAAAAAAA=\"}]")
         expectThat(encodedArgs["e"]!!).isEqualTo("{\"foo\":\"bar\",\"baz\":{\"\$integer\":\"KgAAAAAAAAA=\"}}")
+        expectThat(encodedArgs["f"]!!).isEqualTo("null")
     }
 
     @Test
@@ -98,6 +101,7 @@ class ConvexClientTest {
         expectThat(encodedArgs["c"]!!).isEqualTo("{\"\$integer\":\"KgAAAAAAAAA=\"}")
         expectThat(encodedArgs["d"]!!).isEqualTo("[{\"\$integer\":\"AQAAAAAAAAA=\"},{\"\$integer\":\"AgAAAAAAAAA=\"},{\"\$integer\":\"AwAAAAAAAAA=\"}]")
         expectThat(encodedArgs["e"]!!).isEqualTo("{\"foo\":\"bar\",\"baz\":{\"\$integer\":\"KgAAAAAAAAA=\"}}")
+        expectThat(encodedArgs["f"]!!).isEqualTo("null")
     }
 
     @Test

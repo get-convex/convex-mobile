@@ -50,6 +50,16 @@ export const echoValidatedArgs = action({
   }
 });
 
+export const echoNullableArgs = action({
+  args: {
+    anInt32: v.optional(v.union(v.int64(), v.null())),
+    anotherInt32: v.optional(v.union(v.int64(), v.null())),
+  },
+  handler: async (_, args) => {
+    return args
+  }
+});
+
 export const echoArgs = action({
   handler: async (_, args) => {
     return args

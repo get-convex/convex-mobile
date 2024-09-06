@@ -166,6 +166,17 @@ class ConvexClientInstrumentationTest {
     }
 
     @Test
+    fun can_round_trip_nulls() = runTest {
+        val clientA = ConvexClient(DEPLOYMENT_URL)
+        val sentArgs = mapOf("anotherInt32" to null)
+        val receivedArgs = clientA.action<Map<String, Int32?>>(
+            "messages:echoNullableArgs",
+            args = sentArgs
+        )
+        assertEquals(sentArgs, receivedArgs)
+    }
+
+    @Test
     fun can_round_trip_with_special_floats() = runTest {
         val clientA = ConvexClient(DEPLOYMENT_URL)
         val result = clientA.action<SpecialFloats>(
@@ -200,7 +211,7 @@ data class RoundTripArgs(
     val anInt32: Int32,
     val aFloat32: Float,
 ) {
-    fun toArgs(): Map<String, Any> =
+    fun toArgs(): Map<String, Any?> =
         mapOf(
             "anInt64" to anInt64,
             "aFloat64" to aFloat64,

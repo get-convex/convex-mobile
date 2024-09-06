@@ -46,7 +46,7 @@ class FakeFfiClient : MobileConvexClientInterface {
         }
     }
 
-    fun sendSubscriptionData(name: String, args: Map<String, Any>, data: String) {
+    fun sendSubscriptionData(name: String, args: Map<String, Any?>, data: String) {
         subscriptions[CallKey(
             name,
             args.mapValues { it.value.toJsonElement().toString() })]!!.onUpdate(data)
@@ -54,7 +54,7 @@ class FakeFfiClient : MobileConvexClientInterface {
 
     fun sendSubscriptionError(
         name: String,
-        args: Map<String, Any>,
+        args: Map<String, Any?>,
         errorMessage: String,
         errorData: String? = null
     ) {
@@ -66,7 +66,7 @@ class FakeFfiClient : MobileConvexClientInterface {
         )
     }
 
-    fun hasSubscriptionFor(name: String, args: Map<String, Any>) = subscriptions.contains(
+    fun hasSubscriptionFor(name: String, args: Map<String, Any?>) = subscriptions.contains(
         CallKey(
             name,
             args.mapValues { it.value.toJsonElement().toString() })
