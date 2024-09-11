@@ -64,7 +64,7 @@ open class ConvexClient(
      *
      * @param T result data type that will be decoded from JSON
      */
-    suspend inline fun <reified T> subscribe(
+    inline fun <reified T> subscribe(
         name: String, args: Map<String, Any?>? = null
     ): Flow<Result<T>> = callbackFlow {
         val subscription = ffiClient.subscribe(
