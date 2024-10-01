@@ -25,7 +25,7 @@ maplit = { version = "1" }
 uniffi = { version = "0.28", features = [ "build" ]}
 
 [lib]
-crate-type = ["cdylib", "lib"]
+crate-type = ["cdylib", "lib", "staticlib"]
 name = "convexmobile"
 
 [[bin]]
