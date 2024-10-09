@@ -8,7 +8,7 @@ interface ClientError {
 };
 
 interface MobileConvexClient {
-    constructor(string deployment_url);
+    constructor(string deployment_url, string client_id);
 
     [Async, Throws=ClientError]
     string query(string name, record<string, string> args);

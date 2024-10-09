@@ -65,6 +65,7 @@ impl SubscriptionHandle {
 /// [MobileConvexClient] and await results without blocking their main threads.
 struct MobileConvexClient {
     deployment_url: String,
+    client_id: String,
     client: OnceCell<ConvexClient>,
     rt: tokio::runtime::Runtime,
 }
@@ -74,7 +75,9 @@ impl MobileConvexClient {
     ///
     /// The internal [ConvexClient] doesn't get created/connected until the first public method call that
     /// hits the Convex backend.
-    pub fn new(deployment_url: String) -> MobileConvexClient {
+    ///
+    /// The `client_id` should be a string representing the name and version of the foreign client.
+    pub fn new(deployment_url: String, client_id: String) -> MobileConvexClient {
         #[cfg(debug_assertions)]
         android_logger::init_once(Config::default().with_max_level(LevelFilter::Trace));
         let rt = tokio::runtime::Builder::new_multi_thread()
@@ -83,6 +86,7 @@ impl MobileConvexClient {
             .unwrap();
         MobileConvexClient {
             deployment_url: deployment_url,
+            client_id: client_id,
             client: OnceCell::new(),
             rt: rt,
         }
@@ -100,8 +104,11 @@ impl MobileConvexClient {
 
         self.client
             .get_or_try_init(async {
+                let client_id = self.client_id.to_owned();
                 self.rt
-                    .spawn(async move { ConvexClient::new(url.as_str()).await })
+                    .spawn(async move {
+                        ConvexClient::new_with_client_id(url.as_str(), &client_id).await
+                    })
                     .await?
             })
             .await

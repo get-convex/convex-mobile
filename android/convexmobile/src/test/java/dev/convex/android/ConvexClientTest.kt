@@ -39,7 +39,7 @@ class ConvexClientTest {
     @Before
     fun setup() {
         ffiClient = FakeFfiClient()
-        client = ConvexClient("foo://bar") { ffiClient }
+        client = ConvexClient("foo://bar") { _, _ -> ffiClient }
     }
 
     @Test

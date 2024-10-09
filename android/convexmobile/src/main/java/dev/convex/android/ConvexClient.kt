@@ -46,11 +46,12 @@ typealias ConvexNum = Contextual
  */
 open class ConvexClient(
     deploymentUrl: String,
-    ffiClientFactory: (deploymentUrl: String) -> MobileConvexClientInterface = ::MobileConvexClient
+    ffiClientFactory: (deploymentUrl: String, clientId: String) -> MobileConvexClientInterface = ::MobileConvexClient
 ) {
 
     @PublishedApi
-    internal val ffiClient = ffiClientFactory(deploymentUrl)
+    internal val ffiClient =
+        ffiClientFactory(deploymentUrl, "kotlin-${BuildConfig.LIBRARY_VERSION}")
 
     /**
      * Subscribes to the query with the given [name] and converts data from the subscription into a
@@ -194,7 +195,7 @@ open class ConvexClient(
 class ConvexClientWithAuth<T>(
     deploymentUrl: String,
     private val authProvider: AuthProvider<T>,
-    ffiClientFactory: (deploymentUrl: String) -> MobileConvexClientInterface = ::MobileConvexClient
+    ffiClientFactory: (deploymentUrl: String, clientId: String) -> MobileConvexClientInterface = ::MobileConvexClient
 ) : ConvexClient(deploymentUrl, ffiClientFactory) {
     private val _authState = MutableStateFlow<AuthState<T>>(AuthState.Unauthenticated())
 

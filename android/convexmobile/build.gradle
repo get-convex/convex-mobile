@@ -4,7 +4,13 @@ plugins {
     alias(libs.plugins.jetbrains.kotlin.android)
     id 'org.jetbrains.kotlin.plugin.serialization' version '1.9.0'
     id 'signing'
+    id 'com.palantir.git-version' version '3.1.0'
 }
+
+android.buildFeatures.buildConfig true
+
+// Controls the version for Maven packaging and how the client identifies itself in requests.
+def libraryVersion = gitVersion(prefix:'kotlin@')
 
 android {
     namespace 'dev.convex.android'
@@ -16,7 +22,8 @@ android {
         minSdk 26
         targetSdk 34
         versionCode 1
-        versionName "1.0"
+        versionName libraryVersion
+        buildConfigField 'String', 'LIBRARY_VERSION', "\"${libraryVersion}\""
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -80,7 +87,7 @@ publishing {
         release(MavenPublication) {
             groupId = 'dev.convex'
             artifactId = 'android-convexmobile'
-            version = '0.4.1'
+            version = libraryVersion
             pom {
                 name = 'Convex for Android'
                 description = 'Android client library for building apps with convex.dev'
