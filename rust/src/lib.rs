@@ -1,27 +1,46 @@
+use std::{
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
+    sync::Arc,
+};
+
 #[cfg(debug_assertions)]
 use android_logger::Config;
 use async_once_cell::OnceCell;
-use convex::{ConvexClient, ConvexClientBuilder, FunctionResult, Value};
-use futures::channel::oneshot::{self, Sender};
-use futures::{pin_mut, select_biased, FutureExt, StreamExt};
+use convex::{
+    ConvexClient,
+    ConvexClientBuilder,
+    FunctionResult,
+    Value,
+};
+use futures::{
+    channel::oneshot::{
+        self,
+        Sender,
+    },
+    pin_mut,
+    select_biased,
+    FutureExt,
+    StreamExt,
+};
 use log::debug;
 #[cfg(debug_assertions)]
 use log::LevelFilter;
 use parking_lot::Mutex;
-
-use std::collections::BTreeMap;
-use std::collections::HashMap;
-use std::sync::Arc;
 
 #[derive(Debug, thiserror::Error)]
 enum ClientError {
     /// An error that occurs internally here in the mobile Convex client.
     #[error("InternalError: {msg}")]
     InternalError { msg: String },
-    /// An application specific error that is thrown in a remote Convex backend function.
+    /// An application specific error that is thrown in a remote Convex backend
+    /// function.
     #[error("ConvexError: {data}")]
     ConvexError { data: String },
-    /// An unexpected server error that is thrown in a remote Convex backend function.
+    /// An unexpected server error that is thrown in a remote Convex backend
+    /// function.
     #[error("ServerError: {msg}")]
     ServerError { msg: String },
 }
@@ -58,11 +77,12 @@ impl SubscriptionHandle {
     }
 }
 
-/// A wrapper around a [ConvexClient] and a [tokio::runtime::Runtime] used to asynchronously call
-/// Convex functions.
+/// A wrapper around a [ConvexClient] and a [tokio::runtime::Runtime] used to
+/// asynchronously call Convex functions.
 ///
-/// That enables easy async communication for mobile clients. They can call the various methods on
-/// [MobileConvexClient] and await results without blocking their main threads.
+/// That enables easy async communication for mobile clients. They can call the
+/// various methods on [MobileConvexClient] and await results without blocking
+/// their main threads.
 struct MobileConvexClient {
     deployment_url: String,
     client_id: String,
@@ -73,10 +93,11 @@ struct MobileConvexClient {
 impl MobileConvexClient {
     /// Creates a new [MobileConvexClient].
     ///
-    /// The internal [ConvexClient] doesn't get created/connected until the first public method call that
-    /// hits the Convex backend.
+    /// The internal [ConvexClient] doesn't get created/connected until the
+    /// first public method call that hits the Convex backend.
     ///
-    /// The `client_id` should be a string representing the name and version of the foreign client.
+    /// The `client_id` should be a string representing the name and version of
+    /// the foreign client.
     pub fn new(deployment_url: String, client_id: String) -> MobileConvexClient {
         #[cfg(debug_assertions)]
         android_logger::init_once(Config::default().with_max_level(LevelFilter::Trace));
@@ -85,17 +106,17 @@ impl MobileConvexClient {
             .build()
             .unwrap();
         MobileConvexClient {
-            deployment_url: deployment_url,
-            client_id: client_id,
+            deployment_url,
+            client_id,
             client: OnceCell::new(),
-            rt: rt,
+            rt,
         }
     }
 
     /// Returns a connected [ConvexClient].
     ///
-    /// The first call is guaranteed to create the client object and subsequent calls will return
-    /// clones of that connected client.
+    /// The first call is guaranteed to create the client object and subsequent
+    /// calls will return clones of that connected client.
     ///
     /// Returns an error if ...
     /// TODO figure out reasons.
@@ -133,10 +154,11 @@ impl MobileConvexClient {
 
     /// Subscribe to updates to a query against the Convex backend.
     ///
-    /// The [QuerySubscriber] will be called back with initial query results and it will continue to
-    /// get called as the underlying data changes.
+    /// The [QuerySubscriber] will be called back with initial query results and
+    /// it will continue to get called as the underlying data changes.
     ///
-    /// The returned [SubscriptionHandle] can be used to cancel the subscription.
+    /// The returned [SubscriptionHandle] can be used to cancel the
+    /// subscription.
     pub async fn subscribe(
         &self,
         name: String,
@@ -168,9 +190,19 @@ impl MobileConvexClient {
                         match new_val {
                             FunctionResult::Value(value) => {
                                 debug!("Updating with {value:?}");
-                                subscriber.on_update(serde_json::ser::to_string(&serde_json::Value::from(value)).unwrap())},
-                            FunctionResult::ErrorMessage(message) => subscriber.on_error(message, None),
-                            FunctionResult::ConvexError(error) => subscriber.on_error(error.message, Some(serde_json::ser::to_string(&serde_json::Value::from(error.data)).unwrap()))
+                                subscriber.on_update(serde_json::to_string(
+                                    &serde_json::Value::from(value)
+                                ).unwrap()),
+                            },
+                            FunctionResult::ErrorMessage(message) => {
+                                subscriber.on_error(message, None)
+                            },
+                            FunctionResult::ConvexError(error) => subscriber.on_error(
+                                error.message,
+                                Some(serde_json::ser::to_string(
+                                    &serde_json::Value::from(error.data)
+                                ).unwrap())
+                            )
                         }
                     },
                     _ = cancel_fut => {
@@ -234,11 +266,11 @@ impl MobileConvexClient {
 
     /// Provide an OpenID Connect ID token to be associated with this client.
     ///
-    /// Doing so will share that information with the Convex backend and a valid token will give the
-    /// backend knowledge of a logged in user.
+    /// Doing so will share that information with the Convex backend and a valid
+    /// token will give the backend knowledge of a logged in user.
     ///
-    /// Passing [None] for the token will disassociate a previous token, effectively returning to a
-    /// logged out state.
+    /// Passing [None] for the token will disassociate a previous token,
+    /// effectively returning to a logged out state.
     pub async fn set_auth(&self, token: Option<String>) -> Result<(), ClientError> {
         Ok(self.internal_set_auth(token).await?)
     }
@@ -275,7 +307,7 @@ fn handle_direct_function_result(result: FunctionResult) -> Result<String, Clien
         FunctionResult::ConvexError(e) => Err(ClientError::ConvexError {
             data: serde_json::ser::to_string(&serde_json::Value::from(e.data)).unwrap(),
         }),
-        FunctionResult::ErrorMessage(msg) => Err(ClientError::ServerError { msg: msg }),
+        FunctionResult::ErrorMessage(msg) => Err(ClientError::ServerError { msg }),
     }
 }
 
@@ -283,10 +315,10 @@ uniffi::include_scaffolding!("convex-mobile");
 
 #[cfg(test)]
 mod tests {
-    use maplit::btreemap;
     use std::collections::HashMap;
 
     use convex::Value;
+    use maplit::btreemap;
 
     use crate::parse_json_args;
 
