@@ -192,7 +192,7 @@ impl MobileConvexClient {
                                 debug!("Updating with {value:?}");
                                 subscriber.on_update(serde_json::to_string(
                                     &serde_json::Value::from(value)
-                                ).unwrap()),
+                                ).unwrap())
                             },
                             FunctionResult::ErrorMessage(message) => {
                                 subscriber.on_error(message, None)
