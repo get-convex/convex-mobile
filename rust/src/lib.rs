@@ -1,7 +1,7 @@
 #[cfg(debug_assertions)]
 use android_logger::Config;
 use async_once_cell::OnceCell;
-use convex::{ConvexClient, FunctionResult, Value};
+use convex::{ConvexClient, ConvexClientBuilder, FunctionResult, Value};
 use futures::channel::oneshot::{self, Sender};
 use futures::{pin_mut, select_biased, FutureExt, StreamExt};
 use log::debug;
@@ -107,7 +107,10 @@ impl MobileConvexClient {
                 let client_id = self.client_id.to_owned();
                 self.rt
                     .spawn(async move {
-                        ConvexClient::new_with_client_id(url.as_str(), &client_id).await
+                        ConvexClientBuilder::new(url.as_str())
+                            .with_client_id(&client_id)
+                            .build()
+                            .await
                     })
                     .await?
             })
