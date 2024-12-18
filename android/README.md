@@ -74,8 +74,12 @@ library.
 2. Clone https://github.com/get-convex/convex-mobile
 3. Install Android Studio
 4. Use the SDK Manager to install NDK version 27.0.11902837
-    1. On Mac it will be installed somewhere like `/Users/$you/Library/Android/sdk/ndk/`
-5. Add the following to `~/.cargo/config.toml` (**use your NDK path**)
+    1. Open android studio. Press shift-shift and search sdk manager
+    2. In the SDK tools tab, go to "NDK".
+    3. Check the "show package details" box to get more options
+    4. Select NDK version 27.0.11902837
+    5. On Mac it will be installed somewhere like `/Users/$USER/Library/Android/sdk/ndk/`
+6. Add the following to `~/.cargo/config.toml` (**use your NDK path**)
 
     ```toml
     [target.aarch64-linux-android]
@@ -85,7 +89,9 @@ library.
     linker = "${your NDK x.y.z path}/toolchains/llvm/prebuilt/darwin-x86_64/bin/armv7a-linux-androideabi35-clang"
     ```
 
-6. Run `rustup target add armv7-linux-androideabi aarch64-linux-android`
-7. Open `convex-mobile/android` in Android Studio (wait for it to sync)
-8. Double press Ctrl and type `./gradlew build`
-9. You can generate a local Maven installable package by running `./gradlew publishToMavenLocal`
+7. Run `rustup target add armv7-linux-androideabi aarch64-linux-android`
+8. Open `convex-mobile/android` in Android Studio (wait for it to sync)
+9. Double press Ctrl and type `./gradlew build`
+10. Set up GPG key/passphrase https://central.sonatype.org/publish/requirements/gpg/
+11. Set credentials in gradle.properties https://central.sonatype.org/publish/publish-gradle/#credentials
+12. You can generate a local Maven installable package by running `./gradlew publishToMavenLocal`
