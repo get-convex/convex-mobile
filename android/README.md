@@ -93,5 +93,6 @@ library.
 8. Open `convex-mobile/android` in Android Studio (wait for it to sync)
 9. Double press Ctrl and type `./gradlew build`
 10. Set up GPG key/passphrase https://central.sonatype.org/publish/requirements/gpg/
-11. Set credentials in gradle.properties https://central.sonatype.org/publish/publish-gradle/#credentials
-12. You can generate a local Maven installable package by running `./gradlew publishToMavenLocal`
+11. Make sure to follow through the instructions, including adding to ~/.gradle/gradle.properties and `gpg --keyserver pgp.mit.edu --send-keys {key}`
+12. Set credentials in gradle.properties https://central.sonatype.org/publish/publish-gradle/#credentials
+13. You can generate a local Maven installable package by running `./gradlew publishToMavenLocal`
