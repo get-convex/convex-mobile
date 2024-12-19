@@ -107,6 +107,12 @@ publishing {
                         organization = 'Convex, Inc.'
                         organizationUrl = 'https://www.convex.dev/'
                     }
+                    developer {
+                        name = 'Nipunn Koorapati'
+                        email = 'nipunn@convex.dev'
+                        organization = 'Convex, Inc.'
+                        organizationUrl = 'https://www.convex.dev/'
+                    }
                 }
 
                 scm {
