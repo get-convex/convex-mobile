@@ -54,6 +54,12 @@ cargo {
     libname = "convexmobile"
     targets = ["arm64", "arm"]
     profile = "release"
+
+    exec { execSpecArg, _ ->
+        def pageSizeFlags = "-C link-args=-Wl,-z,max-page-size=16384"
+        def existingRustFlags = System.getenv("RUSTFLAGS") ?: ""
+        execSpecArg.environment("RUSTFLAGS", "${existingRustFlags} ${pageSizeFlags}".trim())
+    }
 }
 
 tasks.whenTaskAdded { task ->
@@ -75,7 +81,9 @@ tasks.register("generateUniFFIBinary", Exec) {
 android.libraryVariants.all { variant ->
     def t = tasks.register("generate${variant.name.capitalize()}UniFFIBindings", Exec) {
         workingDir "${project.projectDir}/../../rust"
-        commandLine './target/debug/uniffi-bindgen', 'generate', '--library', "${project.layout.buildDirectory.asFile.get().path}/rustJniLibs/android/arm64-v8a/libconvexmobile.so", '--language', 'kotlin', '--out-dir', "${project.layout.buildDirectory.asFile.get().path}/generated/source/uniffi/${variant.name}/java"
+        // Should work in linux/mac, tested in windows. Change if unnecessary
+        commandLine 'cargo', 'run', '--bin', 'uniffi-bindgen', '--', 'generate', '--library', "${project.layout.buildDirectory.asFile.get().path}/rustJniLibs/android/arm64-v8a/libconvexmobile.so", '--language', 'kotlin', '--out-dir', "${project.layout.buildDirectory.asFile.get().path}/generated/source/uniffi/${variant.name}/java"
+        //commandLine './target/debug/uniffi-bindgen', 'generate', '--library', "${project.layout.buildDirectory.asFile.get().path}/rustJniLibs/android/arm64-v8a/libconvexmobile.so", '--language', 'kotlin', '--out-dir', "${project.layout.buildDirectory.asFile.get().path}/generated/source/uniffi/${variant.name}/java"
         dependsOn 'generateUniFFIBinary'
     }
     def sourceSet = variant.sourceSets.find { it.name == variant.name }
