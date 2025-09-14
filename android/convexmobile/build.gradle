@@ -55,10 +55,10 @@ cargo {
     targets = ["arm64", "arm"]
     profile = "release"
 
-    exec { execSpecArg, _ ->
-        def pageSizeFlags = "-C link-args=-Wl,-z,max-page-size=16384"
-        def existingRustFlags = System.getenv("RUSTFLAGS") ?: ""
-        execSpecArg.environment("RUSTFLAGS", "${existingRustFlags} ${pageSizeFlags}".trim())
+    exec { spec, toolchain ->
+        // Support 16KB page sizes
+        // https://developer.android.com/guide/practices/page-sizes#other-build-systems
+        spec.environment("RUST_ANDROID_GRADLE_CC_LINK_ARG", "-Wl,-z,max-page-size=16384,-soname,lib${libname}.so")
     }
 }
 
