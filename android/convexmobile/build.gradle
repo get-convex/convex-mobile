@@ -16,7 +16,7 @@ android {
     namespace 'dev.convex.android'
     compileSdk 34
 
-    ndkVersion = "27.0.11902837"
+    ndkVersion = "27.3.13750724"
 
     defaultConfig {
         minSdk 26
@@ -59,6 +59,17 @@ cargo {
         // Support 16KB page sizes
         // https://developer.android.com/guide/practices/page-sizes#other-build-systems
         spec.environment("RUST_ANDROID_GRADLE_CC_LINK_ARG", "-Wl,-z,max-page-size=16384,-soname,lib${libname}.so")
+
+        // Required env vars for aws-lc-rs to compile its aws-lc dependency w/ CMake.
+        def ndkRoot = new File(android.sdkDirectory, "ndk/${android.ndkVersion}")
+        def osName = System.getProperty("os.name").toLowerCase(Locale.ROOT)
+        def hostTag = osName.contains("windows") ? "windows-x86_64" :
+                      osName.contains("linux") ? "linux-x86_64" :
+                      osName.contains("mac") ? "darwin-x86_64" :
+                      "linux-x86_64" // Default
+        def sysroot = new File(ndkRoot, "toolchains/llvm/prebuilt/${hostTag}/sysroot")
+        spec.environment('ANDROID_NDK_ROOT', ndkRoot.absolutePath)
+        spec.environment('BINDGEN_EXTRA_CLANG_ARGS', "--sysroot ${sysroot.absolutePath}")
     }
 }
 
@@ -75,13 +86,14 @@ tasks.whenTaskAdded { task ->
 
 tasks.register("generateUniFFIBinary", Exec) {
     workingDir "${project.projectDir}/../../rust"
-    commandLine 'cargo', 'build'
+    commandLine 'cargo'
+    args 'build', '--bin', 'uniffi-bindgen', '--no-default-features'
 }
 
 android.libraryVariants.all { variant ->
     def t = tasks.register("generate${variant.name.capitalize()}UniFFIBindings", Exec) {
         workingDir "${project.projectDir}/../../rust"
-        commandLine 'cargo', 'run', '--bin', 'uniffi-bindgen', '--', 'generate', '--library', "${project.layout.buildDirectory.asFile.get().path}/rustJniLibs/android/arm64-v8a/libconvexmobile.so", '--language', 'kotlin', '--out-dir', "${project.layout.buildDirectory.asFile.get().path}/generated/source/uniffi/${variant.name}/java"
+        commandLine 'cargo', 'run', '--bin', 'uniffi-bindgen', '--no-default-features', '--', 'generate', '--library', "${project.layout.buildDirectory.asFile.get().path}/rustJniLibs/android/arm64-v8a/libconvexmobile.so", '--language', 'kotlin', '--out-dir', "${project.layout.buildDirectory.asFile.get().path}/generated/source/uniffi/${variant.name}/java"
         dependsOn 'generateUniFFIBinary'
     }
     def sourceSet = variant.sourceSets.find { it.name == variant.name }

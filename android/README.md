@@ -73,11 +73,11 @@ library.
 1. Ensure you have build tools available on your OS (XCode on Mac, `build-essential` on Linux)
 2. Clone https://github.com/get-convex/convex-mobile
 3. Install Android Studio
-4. Use the SDK Manager to install NDK version 27.0.11902837
+4. Use the SDK Manager to install NDK version 27.3.13750724
     1. Open android studio. Press shift-shift and search sdk manager
     2. In the SDK tools tab, go to "NDK".
     3. Check the "show package details" box to get more options
-    4. Select NDK version 27.0.11902837
+    4. Select NDK version 27.3.13750724
     5. On Mac it will be installed somewhere like `/Users/$USER/Library/Android/sdk/ndk/`
 6. Add the following to `~/.cargo/config.toml` (**use your NDK path**)
 
