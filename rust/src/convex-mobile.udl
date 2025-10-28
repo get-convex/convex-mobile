@@ -1,4 +1,6 @@
-namespace convexmobile {};
+namespace convexmobile {
+    void init_convex_logging();
+};
 
 [Error]
 interface ClientError {

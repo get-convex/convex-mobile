@@ -1,34 +1,18 @@
 use std::{
-    collections::{
-        BTreeMap,
-        HashMap,
-    },
+    collections::{BTreeMap, HashMap},
     sync::Arc,
 };
 
-#[cfg(debug_assertions)]
-use android_logger::Config;
 use async_once_cell::OnceCell;
-use convex::{
-    ConvexClient,
-    ConvexClientBuilder,
-    FunctionResult,
-    Value,
-};
+use convex::{ConvexClient, ConvexClientBuilder, FunctionResult, Value};
 use futures::{
-    channel::oneshot::{
-        self,
-        Sender,
-    },
-    pin_mut,
-    select_biased,
-    FutureExt,
-    StreamExt,
+    channel::oneshot::{self, Sender},
+    pin_mut, select_biased, FutureExt, StreamExt,
 };
-use log::debug;
-#[cfg(debug_assertions)]
-use log::LevelFilter;
 use parking_lot::Mutex;
+use tracing::{debug, info};
+
+mod logging;
 
 #[derive(Debug, thiserror::Error)]
 enum ClientError {
@@ -77,6 +61,20 @@ impl SubscriptionHandle {
     }
 }
 
+/// Initializes logging.
+/// 
+/// Call this early in the life of your application to enable logging from
+/// [MobileConvexClient] and its dependencies. 
+pub fn init_convex_logging() {
+    use std::sync::Once;
+    static INIT: Once = Once::new();
+
+    INIT.call_once(|| {
+        logging::init_logging();
+        info!("convexmobile logging initialized");
+    });
+}
+
 /// A wrapper around a [ConvexClient] and a [tokio::runtime::Runtime] used to
 /// asynchronously call Convex functions.
 ///
@@ -99,8 +97,6 @@ impl MobileConvexClient {
     /// The `client_id` should be a string representing the name and version of
     /// the foreign client.
     pub fn new(deployment_url: String, client_id: String) -> MobileConvexClient {
-        #[cfg(debug_assertions)]
-        android_logger::init_once(Config::default().with_max_level(LevelFilter::Trace));
         let rt = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
