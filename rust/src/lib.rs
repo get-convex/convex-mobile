@@ -142,9 +142,7 @@ impl MobileConvexClient {
         args: HashMap<String, String>,
     ) -> Result<String, ClientError> {
         let mut client = self.connected_client().await?;
-        debug!("got the client");
         let result = client.query(name.as_str(), parse_json_args(args)).await?;
-        debug!("got the result");
         handle_direct_function_result(result)
     }
 
@@ -171,7 +169,7 @@ impl MobileConvexClient {
         subscriber: Arc<dyn QuerySubscriber>,
     ) -> anyhow::Result<Arc<SubscriptionHandle>> {
         let mut client = self.connected_client().await?;
-        debug!("New subscription");
+        debug!("New subscription to {}", name);
         let mut subscription = client
             .subscribe(name.as_str(), parse_json_args(args))
             .await?;
@@ -185,7 +183,6 @@ impl MobileConvexClient {
                         let new_val = new_val.expect("Client dropped prematurely");
                         match new_val {
                             FunctionResult::Value(value) => {
-                                debug!("Updating with {value:?}");
                                 subscriber.on_update(serde_json::to_string(
                                     &serde_json::Value::from(value)
                                 ).unwrap())
@@ -217,6 +214,7 @@ impl MobileConvexClient {
         name: String,
         args: HashMap<String, String>,
     ) -> Result<String, ClientError> {
+        debug!("Running mutation: {}", name);
         let result = self.internal_mutation(name, args).await?;
 
         handle_direct_function_result(result)
@@ -244,7 +242,6 @@ impl MobileConvexClient {
     ) -> Result<String, ClientError> {
         debug!("Running action: {}", name);
         let result = self.internal_action(name, args).await?;
-        debug!("Got action result: {:?}", result);
         handle_direct_function_result(result)
     }
 
@@ -254,7 +251,6 @@ impl MobileConvexClient {
         args: HashMap<String, String>,
     ) -> anyhow::Result<FunctionResult> {
         let mut client = self.connected_client().await?;
-        debug!("Running action: {}", name);
         self.rt
             .spawn(async move { client.action(&name, parse_json_args(args)).await })
             .await?
