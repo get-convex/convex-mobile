@@ -212,6 +212,28 @@ class ConvexClientInstrumentationTest {
         assertEquals(expected, result)
         assertEquals(100, result.aPlainInt)
     }
+
+    @Test
+    fun can_observe_websocket_state() = runTest {
+        val client = ConvexClient(DEPLOYMENT_URL)
+
+        val states = mutableListOf<WebSocketState>()
+
+        val receiveJob = launch {
+            client.webSocketStateFlow.take(2).collect { state ->
+                states.add(state)
+            }
+        }
+
+        // It doesn't really matter which Convex function we call - but calling one should trigger
+        // a connection.
+        client.mutation<Unit?>("messages:clearAll")
+
+        receiveJob.join()
+
+        assertEquals(2, states.size)
+        assertEquals(listOf(WebSocketState.CONNECTING, WebSocketState.CONNECTED), states)
+    }
 }
 
 @Serializable

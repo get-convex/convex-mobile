@@ -437,7 +437,7 @@ dependencies = [
 
 [[package]]
 name = "convex-mobile"
-version = "0.2.2"
+version = "0.3.0"
 dependencies = [
  "android_logger",
  "anyhow",

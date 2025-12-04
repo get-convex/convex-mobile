@@ -7,6 +7,7 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.serialization.Contextual
 import kotlinx.serialization.Serializable
@@ -46,12 +47,29 @@ typealias ConvexNum = Contextual
  */
 open class ConvexClient(
     deploymentUrl: String,
-    ffiClientFactory: (deploymentUrl: String, clientId: String) -> MobileConvexClientInterface = ::MobileConvexClient
+    ffiClientFactory: (deploymentUrl: String, clientId: String, webSocketStateSubscriber: WebSocketStateSubscriber?) -> MobileConvexClientInterface = ::MobileConvexClient
 ) {
+    private val _webSocketStateFlow = MutableStateFlow(WebSocketState.CONNECTING)
+    private val webSocketStateSubscriber = object : WebSocketStateSubscriber {
+        override fun onStateChange(state: WebSocketState) {
+            _webSocketStateFlow.value = state
+        }
+    }
 
     @PublishedApi
     internal val ffiClient =
-        ffiClientFactory(deploymentUrl, "kotlin-${BuildConfig.LIBRARY_VERSION}")
+        ffiClientFactory(
+            deploymentUrl,
+            "kotlin-${BuildConfig.LIBRARY_VERSION}",
+            webSocketStateSubscriber
+        )
+
+    /**
+     * A [Flow] of [WebSocketState].
+     *
+     * Will change states as the underlying state of the WebSocket connection to Convex changes.
+     */
+    val webSocketStateFlow: StateFlow<WebSocketState> = _webSocketStateFlow.asStateFlow()
 
     /**
      * Subscribes to the query with the given [name] and converts data from the subscription into a
@@ -195,7 +213,7 @@ open class ConvexClient(
 class ConvexClientWithAuth<T>(
     deploymentUrl: String,
     private val authProvider: AuthProvider<T>,
-    ffiClientFactory: (deploymentUrl: String, clientId: String) -> MobileConvexClientInterface = ::MobileConvexClient
+    ffiClientFactory: (deploymentUrl: String, clientId: String, webSocketSocketStateSubscriber: WebSocketStateSubscriber?) -> MobileConvexClientInterface = ::MobileConvexClient
 ) : ConvexClient(deploymentUrl, ffiClientFactory) {
     private val _authState = MutableStateFlow<AuthState<T>>(AuthState.Unauthenticated())
 

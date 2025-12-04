@@ -26,7 +26,7 @@ class ConvexClientWithAuthTest {
         client = ConvexClientWithAuth(
             "foo://bar",
             authProvider
-        ) { _, _ -> ffiClient }
+        ) { _, _, _ -> ffiClient }
     }
 
     @Test

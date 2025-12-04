@@ -9,8 +9,18 @@ interface ClientError {
     ServerError(string msg);
 };
 
+enum WebSocketState {
+    "Connected",
+    "Connecting",
+};
+
+[Trait, WithForeign]
+interface WebSocketStateSubscriber {        
+    void on_state_change(WebSocketState state);
+};
+
 interface MobileConvexClient {
-    constructor(string deployment_url, string client_id);
+    constructor(string deployment_url, string client_id, WebSocketStateSubscriber? web_socket_state_subscriber);
 
     [Async, Throws=ClientError]
     string query(string name, record<string, string> args);

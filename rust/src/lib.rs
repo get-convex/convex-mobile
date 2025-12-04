@@ -4,12 +4,13 @@ use std::{
 };
 
 use async_once_cell::OnceCell;
-use convex::{ConvexClient, ConvexClientBuilder, FunctionResult, Value};
+use convex::{ConvexClient, ConvexClientBuilder, FunctionResult, Value, WebSocketState};
 use futures::{
     channel::oneshot::{self, Sender},
     pin_mut, select_biased, FutureExt, StreamExt,
 };
 use parking_lot::Mutex;
+use tokio::sync::mpsc;
 use tracing::{debug, info};
 
 mod logging;
@@ -43,6 +44,10 @@ pub trait QuerySubscriber: Send + Sync {
     fn on_error(&self, message: String, value: Option<String>) -> ();
 }
 
+pub trait WebSocketStateSubscriber: Send + Sync {
+    fn on_state_change(&self, state: WebSocketState) -> ();
+}
+
 pub struct SubscriptionHandle {
     cancel_sender: Mutex<Option<Sender<()>>>,
 }
@@ -62,9 +67,9 @@ impl SubscriptionHandle {
 }
 
 /// Initializes logging.
-/// 
+///
 /// Call this early in the life of your application to enable logging from
-/// [MobileConvexClient] and its dependencies. 
+/// [MobileConvexClient] and its dependencies.
 pub fn init_convex_logging() {
     use std::sync::Once;
     static INIT: Once = Once::new();
@@ -84,6 +89,7 @@ pub fn init_convex_logging() {
 struct MobileConvexClient {
     deployment_url: String,
     client_id: String,
+    web_socket_state_subscriber: Option<Arc<dyn WebSocketStateSubscriber>>,
     client: OnceCell<ConvexClient>,
     rt: tokio::runtime::Runtime,
 }
@@ -96,7 +102,11 @@ impl MobileConvexClient {
     ///
     /// The `client_id` should be a string representing the name and version of
     /// the foreign client.
-    pub fn new(deployment_url: String, client_id: String) -> MobileConvexClient {
+    pub fn new(
+        deployment_url: String,
+        client_id: String,
+        web_socket_state_subscriber: Option<Arc<dyn WebSocketStateSubscriber>>,
+    ) -> MobileConvexClient {
         let rt = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
@@ -104,6 +114,7 @@ impl MobileConvexClient {
         MobileConvexClient {
             deployment_url,
             client_id,
+            web_socket_state_subscriber,
             client: OnceCell::new(),
             rt,
         }
@@ -122,12 +133,25 @@ impl MobileConvexClient {
         self.client
             .get_or_try_init(async {
                 let client_id = self.client_id.to_owned();
+                let (tx, mut rx) = mpsc::channel(1);
+                let possible_subscriber = self.web_socket_state_subscriber.clone();
+                if let Some(subscriber) = possible_subscriber.clone() {
+                    self.rt.spawn(async move {
+                        while let Some(state) = rx.recv().await {
+                            subscriber.on_state_change(state);
+                        }
+                    });
+                }
+
+                let has_subscriber = possible_subscriber.is_some();
                 self.rt
                     .spawn(async move {
-                        ConvexClientBuilder::new(url.as_str())
-                            .with_client_id(&client_id)
-                            .build()
-                            .await
+                        let mut builder =
+                            ConvexClientBuilder::new(url.as_str()).with_client_id(&client_id);
+                        if has_subscriber {
+                            builder = builder.with_on_state_change(tx);
+                        }
+                        builder.build().await
                     })
                     .await?
             })
