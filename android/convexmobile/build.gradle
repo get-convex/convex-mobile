@@ -52,7 +52,7 @@ android {
 cargo {
     module = "../../rust"
     libname = "convexmobile"
-    targets = ["arm64", "arm"]
+    targets = ["arm64", "arm", "x86_64"]
     profile = "release"
 
     exec { spec, toolchain ->
