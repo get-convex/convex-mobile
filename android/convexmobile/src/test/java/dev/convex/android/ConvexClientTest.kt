@@ -71,6 +71,25 @@ class ConvexClientTest {
     }
 
     @Test
+    fun `subscribe preserves nested nulls in maps and lists`() = runTest {
+        val nestedArgs = mapOf(
+            "paginationOpts" to mapOf(
+                "numItems" to 10,
+                "cursor" to null
+            ),
+            "items" to listOf(1, null, mapOf("k" to null))
+        )
+
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            client.subscribe<Foo>(QUERY_NAME, nestedArgs).collect {}
+        }
+
+        val encodedArgs = ffiClient.subscriptionRequestsFor(QUERY_NAME).single().args
+        expectThat(encodedArgs["paginationOpts"]!!).isEqualTo("{\"numItems\":{\"\$integer\":\"CgAAAAAAAAA=\"},\"cursor\":null}")
+        expectThat(encodedArgs["items"]!!).isEqualTo("[{\"\$integer\":\"AQAAAAAAAAA=\"},null,{\"k\":null}]")
+    }
+
+    @Test
     fun `mutation properly encodes args`() = runTest {
         val job = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             client.mutation(QUERY_NAME, QUERY_ARGS)
@@ -88,6 +107,27 @@ class ConvexClientTest {
     }
 
     @Test
+    fun `mutation preserves nested nulls in maps and lists`() = runTest {
+        val nestedArgs = mapOf(
+            "paginationOpts" to mapOf(
+                "numItems" to 10,
+                "cursor" to null
+            ),
+            "items" to listOf(1, null, mapOf("k" to null))
+        )
+
+        val job = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            client.mutation<Unit?>(QUERY_NAME, nestedArgs)
+        }
+
+        job.join()
+
+        val encodedArgs = ffiClient.mutations[QUERY_NAME]!!
+        expectThat(encodedArgs["paginationOpts"]!!).isEqualTo("{\"numItems\":{\"\$integer\":\"CgAAAAAAAAA=\"},\"cursor\":null}")
+        expectThat(encodedArgs["items"]!!).isEqualTo("[{\"\$integer\":\"AQAAAAAAAAA=\"},null,{\"k\":null}]")
+    }
+
+    @Test
     fun `action properly encodes args`() = runTest {
         val job = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             client.action(QUERY_NAME, QUERY_ARGS)
@@ -102,6 +142,27 @@ class ConvexClientTest {
         expectThat(encodedArgs["d"]!!).isEqualTo("[{\"\$integer\":\"AQAAAAAAAAA=\"},{\"\$integer\":\"AgAAAAAAAAA=\"},{\"\$integer\":\"AwAAAAAAAAA=\"}]")
         expectThat(encodedArgs["e"]!!).isEqualTo("{\"foo\":\"bar\",\"baz\":{\"\$integer\":\"KgAAAAAAAAA=\"}}")
         expectThat(encodedArgs["f"]!!).isEqualTo("null")
+    }
+
+    @Test
+    fun `action preserves nested nulls in maps and lists`() = runTest {
+        val nestedArgs = mapOf(
+            "paginationOpts" to mapOf(
+                "numItems" to 10,
+                "cursor" to null
+            ),
+            "items" to listOf(1, null, mapOf("k" to null))
+        )
+
+        val job = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            client.action<Unit?>(QUERY_NAME, nestedArgs)
+        }
+
+        job.join()
+
+        val encodedArgs = ffiClient.actions[QUERY_NAME]!!
+        expectThat(encodedArgs["paginationOpts"]!!).isEqualTo("{\"numItems\":{\"\$integer\":\"CgAAAAAAAAA=\"},\"cursor\":null}")
+        expectThat(encodedArgs["items"]!!).isEqualTo("[{\"\$integer\":\"AQAAAAAAAAA=\"},null,{\"k\":null}]")
     }
 
     @Test

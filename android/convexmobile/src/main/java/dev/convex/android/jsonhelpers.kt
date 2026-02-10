@@ -19,8 +19,9 @@ internal fun Map<*, *>.toJsonElement(): JsonElement {
     val map: MutableMap<String, JsonElement> = mutableMapOf()
     this.forEach {
         val key = it.key as? String ?: return@forEach
-        val value = it.value ?: return@forEach
+        val value = it.value
         when (value) {
+            null -> map[key] = JsonNull
             is Map<*, *> -> map[key] = (value).toJsonElement()
             is List<*> -> map[key] = value.toJsonElement()
             else -> map[key] = value.toJsonElement()
@@ -33,8 +34,9 @@ internal fun Map<*, *>.toJsonElement(): JsonElement {
 internal fun List<*>.toJsonElement(): JsonElement {
     val list: MutableList<JsonElement> = mutableListOf()
     this.forEach {
-        val value = it ?: return@forEach
+        val value = it
         when (value) {
+            null -> list.add(JsonNull)
             is Map<*, *> -> list.add((value).toJsonElement())
             is List<*> -> list.add(value.toJsonElement())
             else -> list.add(value.toJsonElement())
