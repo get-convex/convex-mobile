@@ -19,6 +19,12 @@ interface WebSocketStateSubscriber {
     void on_state_change(WebSocketState state);
 };
 
+[Trait, WithForeign]
+interface AuthTokenProvider {
+    [Async, Throws=ClientError]
+    string? fetch_token(boolean force_refresh);
+};
+
 interface MobileConvexClient {
     constructor(string deployment_url, string client_id, WebSocketStateSubscriber? web_socket_state_subscriber);
 
@@ -36,6 +42,9 @@ interface MobileConvexClient {
 
     [Async, Throws=ClientError]
     void set_auth(string? token);
+
+    [Async, Throws=ClientError]
+    void set_auth_callback(AuthTokenProvider? provider);
 };
 
 interface SubscriptionHandle {

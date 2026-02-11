@@ -4,7 +4,10 @@ use std::{
 };
 
 use async_once_cell::OnceCell;
-use convex::{ConvexClient, ConvexClientBuilder, FunctionResult, Value, WebSocketState};
+use convex::{
+    AuthTokenFetcher, AuthenticationToken, ConvexClient, ConvexClientBuilder, FunctionResult, Value,
+    WebSocketState,
+};
 use futures::{
     channel::oneshot::{self, Sender},
     pin_mut, select_biased, FutureExt, StreamExt,
@@ -16,7 +19,7 @@ use tracing::{debug, info};
 mod logging;
 
 #[derive(Debug, thiserror::Error)]
-enum ClientError {
+pub enum ClientError {
     /// An error that occurs internally here in the mobile Convex client.
     #[error("InternalError: {msg}")]
     InternalError { msg: String },
@@ -46,6 +49,11 @@ pub trait QuerySubscriber: Send + Sync {
 
 pub trait WebSocketStateSubscriber: Send + Sync {
     fn on_state_change(&self, state: WebSocketState) -> ();
+}
+
+#[async_trait::async_trait]
+pub trait AuthTokenProvider: Send + Sync {
+    async fn fetch_token(&self, force_refresh: bool) -> Result<Option<String>, ClientError>;
 }
 
 pub struct SubscriptionHandle {
@@ -295,6 +303,42 @@ impl MobileConvexClient {
         let mut client = self.connected_client().await?;
         self.rt
             .spawn(async move { client.set_auth(token).await })
+            .await
+            .map_err(|e| e.into())
+    }
+
+    /// Set an auth token fetcher callback.
+    ///
+    /// The callback is invoked immediately and again on every websocket
+    /// reconnect, allowing dynamic token refresh.
+    ///
+    /// Passing [None] clears the callback and logs out.
+    pub async fn set_auth_callback(
+        &self,
+        provider: Option<Arc<dyn AuthTokenProvider>>,
+    ) -> Result<(), ClientError> {
+        Ok(self.internal_set_auth_callback(provider).await?)
+    }
+
+    async fn internal_set_auth_callback(
+        &self,
+        provider: Option<Arc<dyn AuthTokenProvider>>,
+    ) -> anyhow::Result<()> {
+        let mut client = self.connected_client().await?;
+        let fetcher: Option<AuthTokenFetcher> = provider.map(|p| -> AuthTokenFetcher {
+            Box::new(move |force_refresh: bool| {
+                let p = p.clone();
+                Box::pin(async move {
+                    match p.fetch_token(force_refresh).await {
+                        Ok(Some(token)) => Ok(AuthenticationToken::User(token)),
+                        Ok(None) => Ok(AuthenticationToken::None),
+                        Err(e) => Err(anyhow::anyhow!("{e}")),
+                    }
+                })
+            })
+        });
+        self.rt
+            .spawn(async move { client.set_auth_callback(fetcher).await })
             .await
             .map_err(|e| e.into())
     }

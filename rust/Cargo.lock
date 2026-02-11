@@ -413,9 +413,9 @@ dependencies = [
 
 [[package]]
 name = "convex"
-version = "0.10.2"
+version = "0.10.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16e7ab85cfc76e9a13d252da8a7933ab52f38b9c51de3f7bb8dbe4e2262bac04"
+checksum = "c154dd74ee30e7c1757486657f5c6e961f3ad183cd490c1e71dab58b0ad0717f"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -442,6 +442,7 @@ dependencies = [
  "android_logger",
  "anyhow",
  "async-once-cell",
+ "async-trait",
  "aws-lc-rs",
  "convex",
  "futures",
@@ -464,9 +465,9 @@ dependencies = [
 
 [[package]]
 name = "convex_sync_types"
-version = "0.10.2"
+version = "0.10.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f819ce8fd4370f235f2f5e345499fa219d7d1827cd88923f1fa42942853604a0"
+checksum = "4089e2bd007e883e8a7a2ee44c3550969f15d471b7ec9c06976e91f1193cd0e3"
 dependencies = [
  "anyhow",
  "base64 0.13.1",
@@ -1045,7 +1046,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "07033963ba89ebaf1584d767badaa2e8fcec21aedea6b8c0346d487d49c28667"
 dependencies = [
  "cfg-if",
- "windows-targets 0.52.6",
+ "windows-targets 0.53.5",
 ]
 
 [[package]]
@@ -1724,9 +1725,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-tungstenite"
-version = "0.26.2"
+version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a9daff607c6d2bf6c16fd681ccb7eecc83e4e2cdc1ca067ffaadfca5de7f084"
+checksum = "d25a406cddcc431a75d3d9afc6a7c0f7428d4891dd973e4d54c56b46127bf857"
 dependencies = [
  "futures-util",
  "log",
@@ -1846,9 +1847,9 @@ dependencies = [
 
 [[package]]
 name = "tungstenite"
-version = "0.26.2"
+version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4793cb5e56680ecbb1d843515b23b6de9a75eb04b66643e256a396d43be33c13"
+checksum = "8628dcc84e5a09eb3d8423d6cb682965dea9133204e8fb3efee74c2a0c259442"
 dependencies = [
  "bytes",
  "data-encoding",
