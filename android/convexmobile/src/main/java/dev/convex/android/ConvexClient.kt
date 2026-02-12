@@ -2,6 +2,8 @@ package dev.convex.android
 
 import android.content.Context
 import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -9,6 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Contextual
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -213,6 +216,7 @@ open class ConvexClient(
 class ConvexClientWithAuth<T>(
     deploymentUrl: String,
     private val authProvider: AuthProvider<T>,
+    private val coroutineScope: CoroutineScope = CoroutineScope(SupervisorJob()),
     ffiClientFactory: (deploymentUrl: String, clientId: String, webSocketSocketStateSubscriber: WebSocketStateSubscriber?) -> MobileConvexClientInterface = ::MobileConvexClient
 ) : ConvexClient(deploymentUrl, ffiClientFactory) {
     private val _authState = MutableStateFlow<AuthState<T>>(AuthState.Unauthenticated())
@@ -231,7 +235,7 @@ class ConvexClientWithAuth<T>(
      */
     suspend fun login(context: Context): Result<T> {
         _authState.emit(AuthState.AuthLoading())
-        val result = authProvider.login(context)
+        val result = authProvider.login(context, onIdTokenHandler())
         return result.onSuccess {
             ffiClient.setAuth(authProvider.extractIdToken(it))
             _authState.emit(AuthState.Authenticated(it))
@@ -256,7 +260,7 @@ class ConvexClientWithAuth<T>(
      */
     suspend fun loginFromCache(): Result<T> {
         _authState.emit(AuthState.AuthLoading())
-        val result = authProvider.loginFromCache()
+        val result = authProvider.loginFromCache(onIdTokenHandler())
         return result.onSuccess {
             ffiClient.setAuth(authProvider.extractIdToken(it))
             _authState.emit(AuthState.Authenticated(result.getOrThrow()))
@@ -276,6 +280,26 @@ class ConvexClientWithAuth<T>(
             _authState.emit(AuthState.Unauthenticated())
         }
         return result
+    }
+
+    /**
+     * Creates a handler for token updates from the auth provider.
+     *
+     * This handler is passed to the auth provider during login and should be called
+     * whenever a fresh token is available or when the session becomes invalid.
+     */
+    private fun onIdTokenHandler(): (String?) -> Unit = { token ->
+        coroutineScope.launch {
+            try {
+                ffiClient.setAuth(token)
+                if (token == null) {
+                    _authState.emit(AuthState.Unauthenticated())
+                }
+            } catch (e: Exception) {
+                Log.e("ConvexClientWithAuth", "Error handling token refresh", e)
+                _authState.emit(AuthState.Unauthenticated())
+            }
+        }
     }
 }
 
@@ -312,17 +336,23 @@ interface AuthProvider<T> {
      * Trigger a login flow, which might launch a new UI/screen.
      *
      * @param context typically an Activity which can be used to launch login UI
+     * @param onIdToken a callback to invoke with a fresh JWT ID token. The auth provider should
+     *   store this callback and invoke it whenever a new token is available (e.g., on token refresh).
+     *   Call with `null` if the session becomes invalid (e.g., token refresh fails).
      * @return a [Result] containing [T] upon successful login
      */
-    suspend fun login(context: Context): Result<T>
+    suspend fun login(context: Context, onIdToken: (String?) -> Unit): Result<T>
 
     /**
      * Trigger a cached, UI-less re-authentication using stored credentials from a previous [login].
      *
+     * @param onIdToken a callback to invoke with a fresh JWT ID token. The auth provider should
+     *   store this callback and invoke it whenever a new token is available (e.g., on token refresh).
+     *   Call with `null` if the session becomes invalid (e.g., token refresh fails).
      * @throws NotImplementedError if this provider doesn't support [loginFromCache]
      * @return a [Result] containing [T] upon successful re-auth
      */
-    suspend fun loginFromCache(): Result<T> {
+    suspend fun loginFromCache(onIdToken: (String?) -> Unit): Result<T> {
         throw NotImplementedError("$this does not support loginFromCache")
     }
 
