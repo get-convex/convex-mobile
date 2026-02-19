@@ -30,7 +30,7 @@ plugins {
 
 dependencies {
     // ... existing dependencies
-    implementation("dev.convex:android-convexmobile:0.4.0@aar") {
+    implementation("dev.convex:android-convexmobile:0.8.0@aar") {
         isTransitive = true
     }
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
