@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Contextual
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -220,6 +222,7 @@ class ConvexClientWithAuth<T>(
     ffiClientFactory: (deploymentUrl: String, clientId: String, webSocketSocketStateSubscriber: WebSocketStateSubscriber?) -> MobileConvexClientInterface = ::MobileConvexClient
 ) : ConvexClient(deploymentUrl, ffiClientFactory) {
     private val _authState = MutableStateFlow<AuthState<T>>(AuthState.Unauthenticated())
+    private var authBridge: AuthTokenProviderBridge? = null
 
     /**
      * A [Flow] of [AuthState] that represents the authentication state of this client instance.
@@ -233,15 +236,8 @@ class ConvexClientWithAuth<T>(
      * will change to either [AuthState.Authenticated] or [AuthState.Unauthenticated] depending on
      * the result.
      */
-    suspend fun login(context: Context): Result<T> {
-        _authState.emit(AuthState.AuthLoading())
-        val result = authProvider.login(context, onIdTokenHandler())
-        return result.onSuccess {
-            ffiClient.setAuth(authProvider.extractIdToken(it))
-            _authState.emit(AuthState.Authenticated(it))
-        }
-            .onFailure { _authState.emit(AuthState.Unauthenticated()) }
-    }
+    suspend fun login(context: Context): Result<T> =
+        loginWithStrategy { cb -> authProvider.login(context, cb) }
 
     /**
      * Triggers a cached, UI-less re-authentication flow using previously stored credentials and
@@ -258,15 +254,8 @@ class ConvexClientWithAuth<T>(
      *
      * @throws NotImplementedError if the [AuthProvider] doesn't support [loginFromCache]
      */
-    suspend fun loginFromCache(): Result<T> {
-        _authState.emit(AuthState.AuthLoading())
-        val result = authProvider.loginFromCache(onIdTokenHandler())
-        return result.onSuccess {
-            ffiClient.setAuth(authProvider.extractIdToken(it))
-            _authState.emit(AuthState.Authenticated(result.getOrThrow()))
-        }
-            .onFailure { _authState.emit(AuthState.Unauthenticated()) }
-    }
+    suspend fun loginFromCache(): Result<T> =
+        loginWithStrategy { cb -> authProvider.loginFromCache(cb) }
 
     /**
      * Triggers a logout flow and updates the [authState].
@@ -276,10 +265,32 @@ class ConvexClientWithAuth<T>(
     suspend fun logout(context: Context): Result<Void?> {
         val result = authProvider.logout(context)
         if (result.isSuccess) {
-            ffiClient.setAuth(null)
+            authBridge = null
+            ffiClient.setAuthCallback(null)
             _authState.emit(AuthState.Unauthenticated())
         }
         return result
+    }
+
+    private suspend fun loginWithStrategy(
+        strategy: suspend (onIdToken: (String?) -> Unit) -> Result<T>
+    ): Result<T> {
+        _authState.emit(AuthState.AuthLoading())
+        val idTokenHandler = onIdTokenHandler()
+        val result = strategy(idTokenHandler)
+        return result.onSuccess { authData ->
+            val token = authProvider.extractIdToken(authData)
+            val bridge = AuthTokenProviderBridge(
+                initialToken = token,
+                getValidToken = {
+                    authProvider.loginFromCache(idTokenHandler).getOrNull()
+                        ?.let { authProvider.extractIdToken(it) }
+                }
+            )
+            authBridge = bridge
+            ffiClient.setAuthCallback(bridge)
+            _authState.emit(AuthState.Authenticated(authData))
+        }.onFailure { _authState.emit(AuthState.Unauthenticated()) }
     }
 
     /**
@@ -291,14 +302,45 @@ class ConvexClientWithAuth<T>(
     private fun onIdTokenHandler(): (String?) -> Unit = { token ->
         coroutineScope.launch {
             try {
-                ffiClient.setAuth(token)
-                if (token == null) {
+                if (token != null) {
+                    authBridge?.updateToken(token)
+                    authBridge?.let { ffiClient.setAuthCallback(it) }
+                } else {
+                    authBridge = null
+                    ffiClient.setAuthCallback(null)
                     _authState.emit(AuthState.Unauthenticated())
                 }
             } catch (e: Exception) {
                 Log.e("ConvexClientWithAuth", "Error handling token refresh", e)
                 _authState.emit(AuthState.Unauthenticated())
             }
+        }
+    }
+
+    /**
+     * Adapts the push-based [onIdToken] model to the pull-based [AuthTokenProvider] callback
+     * model used by the Rust client.
+     *
+     * Caches the latest pushed token so the Rust client can pull it on demand (e.g. on WebSocket
+     * reconnect). When [forceRefresh] is requested, delegates to [loginFromCache] via the
+     * [getValidToken] lambda to obtain a fresh token.
+     */
+    private inner class AuthTokenProviderBridge(
+        initialToken: String?,
+        private val getValidToken: suspend () -> String?
+    ) : AuthTokenProvider {
+        private val mutex = Mutex()
+        private var cachedToken: String? = initialToken
+
+        override suspend fun fetchToken(forceRefresh: Boolean): String? = mutex.withLock {
+            if (forceRefresh) {
+                cachedToken = getValidToken()
+            }
+            cachedToken
+        }
+
+        suspend fun updateToken(token: String?) = mutex.withLock {
+            cachedToken = token
         }
     }
 }

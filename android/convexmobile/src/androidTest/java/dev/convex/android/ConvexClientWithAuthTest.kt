@@ -11,6 +11,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -123,17 +124,64 @@ class ConvexClientWithAuthTest {
     }
 
     @Test
-    fun tokenRefresh_calls_setAuth_on_ffi_client() = runTest {
+    fun login_sets_auth_callback_on_ffi_client() = runTest {
+        val (client, ffiClient, _) = createClient()
+
+        client.login(ApplicationProvider.getApplicationContext())
+
+        assertNotNull(ffiClient.receivedAuthProvider)
+        val token = ffiClient.receivedAuthProvider?.fetchToken(false)
+        assertEquals(FakeCredentials.idToken, token)
+    }
+
+    @Test
+    fun loginFromCache_sets_auth_callback_on_ffi_client() = runTest {
+        val (client, ffiClient, _) = createClient()
+
+        client.loginFromCache()
+
+        assertNotNull(ffiClient.receivedAuthProvider)
+        val token = ffiClient.receivedAuthProvider?.fetchToken(false)
+        assertEquals(FakeCredentials.idToken, token)
+    }
+
+    @Test
+    fun logout_clears_auth_callback_on_ffi_client() = runTest {
+        val (client, ffiClient, _) = createClient()
+
+        client.login(ApplicationProvider.getApplicationContext())
+        assertNotNull(ffiClient.receivedAuthProvider)
+
+        client.logout(ApplicationProvider.getApplicationContext())
+        assertNull(ffiClient.receivedAuthProvider)
+    }
+
+    @Test
+    fun force_refresh_calls_login_from_cache_for_fresh_token() = runTest {
         val (client, ffiClient, authProvider) = createClient()
 
         client.login(ApplicationProvider.getApplicationContext())
-        assertEquals(FakeCredentials.idToken, ffiClient.receivedAuthToken)
+        val callCountAfterLogin = authProvider.loginFromCacheCallCount
+
+        val token = ffiClient.receivedAuthProvider?.fetchToken(true)
+        assertEquals(FakeCredentials.idToken, token)
+        assertEquals(callCountAfterLogin + 1, authProvider.loginFromCacheCallCount)
+    }
+
+    @Test
+    fun tokenRefresh_updates_auth_callback() = runTest {
+        val (client, ffiClient, authProvider) = createClient()
+
+        client.login(ApplicationProvider.getApplicationContext())
+        val initialToken = ffiClient.receivedAuthProvider?.fetchToken(false)
+        assertEquals(FakeCredentials.idToken, initialToken)
 
         val refreshedToken = "refreshed_token_value"
         authProvider.simulateTokenRefresh(refreshedToken)
         advanceUntilIdle()
 
-        assertEquals(refreshedToken, ffiClient.receivedAuthToken)
+        val updatedToken = ffiClient.receivedAuthProvider?.fetchToken(false)
+        assertEquals(refreshedToken, updatedToken)
     }
 
     @Test
@@ -146,7 +194,7 @@ class ConvexClientWithAuthTest {
         authProvider.simulateTokenRefresh(null)
         advanceUntilIdle()
 
-        assertNull(ffiClient.receivedAuthToken)
+        assertNull(ffiClient.receivedAuthProvider)
         assertTrue(client.authState.value is AuthState.Unauthenticated)
     }
 }
@@ -158,6 +206,7 @@ private data object FakeCredentials {
 
 private class FakeAuthProvider : AuthProvider<FakeCredentials> {
     var simulateFailure = false
+    var loginFromCacheCallCount = 0
     private var storedOnIdToken: ((String?) -> Unit)? = null
 
     override suspend fun login(context: Context, onIdToken: (String?) -> Unit): Result<FakeCredentials> {
@@ -171,6 +220,7 @@ private class FakeAuthProvider : AuthProvider<FakeCredentials> {
     }
 
     override suspend fun loginFromCache(onIdToken: (String?) -> Unit): Result<FakeCredentials> {
+        loginFromCacheCallCount++
         storedOnIdToken = onIdToken
         // Act like an actual function that will do async work.
         yield()

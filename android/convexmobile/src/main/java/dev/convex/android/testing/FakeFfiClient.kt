@@ -1,5 +1,6 @@
 package dev.convex.android.testing
 
+import dev.convex.android.AuthTokenProvider
 import dev.convex.android.MobileConvexClientInterface
 import dev.convex.android.NoPointer
 import dev.convex.android.QuerySubscriber
@@ -12,7 +13,7 @@ class FakeFfiClient : MobileConvexClientInterface {
     val subscriptions = mutableMapOf<CallKey, QuerySubscriber>()
     val actions = mutableMapOf<String, Map<String, String>>()
     val mutations = mutableMapOf<String, Map<String, String>>()
-    var receivedAuthToken: String? = null
+    var receivedAuthProvider: AuthTokenProvider? = null
 
     override suspend fun action(name: String, args: Map<String, String>): String {
         actions[name] = args
@@ -29,7 +30,11 @@ class FakeFfiClient : MobileConvexClientInterface {
     }
 
     override suspend fun setAuth(token: String?) {
-        receivedAuthToken = token
+        receivedAuthProvider = null
+    }
+
+    override suspend fun setAuthCallback(provider: AuthTokenProvider?) {
+        receivedAuthProvider = provider
     }
 
     override suspend fun subscribe(
