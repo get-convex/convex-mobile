@@ -5,8 +5,8 @@ use std::{
 
 use async_once_cell::OnceCell;
 use convex::{
-    AuthTokenFetcher, AuthenticationToken, ConvexClient, ConvexClientBuilder, FunctionResult, Value,
-    WebSocketState,
+    AuthTokenFetcher, AuthenticationToken, ConvexClient, ConvexClientBuilder, FunctionResult,
+    Value, WebSocketState,
 };
 use futures::{
     channel::oneshot::{self, Sender},
@@ -69,7 +69,8 @@ impl SubscriptionHandle {
 
     pub fn cancel(&self) {
         if let Some(sender) = self.cancel_sender.lock().take() {
-            sender.send(()).unwrap();
+            // Ignore send failure — receiver already dropped means subscription is already cancelled.
+            let _ = sender.send(());
         }
     }
 }
@@ -212,22 +213,25 @@ impl MobileConvexClient {
             loop {
                 select_biased! {
                     new_val = subscription.next().fuse() => {
-                        let new_val = new_val.expect("Client dropped prematurely");
                         match new_val {
-                            FunctionResult::Value(value) => {
+                            Some(FunctionResult::Value(value)) => {
                                 subscriber.on_update(serde_json::to_string(
                                     &serde_json::Value::from(value)
                                 ).unwrap())
                             },
-                            FunctionResult::ErrorMessage(message) => {
+                            Some(FunctionResult::ErrorMessage(message)) => {
                                 subscriber.on_error(message, None)
                             },
-                            FunctionResult::ConvexError(error) => subscriber.on_error(
+                            Some(FunctionResult::ConvexError(error)) => subscriber.on_error(
                                 error.message,
                                 Some(serde_json::ser::to_string(
                                     &serde_json::Value::from(error.data)
                                 ).unwrap())
-                            )
+                            ),
+                            None => {
+                                debug!("Client dropped prematurely");
+                                break
+                            }
                         }
                     },
                     _ = cancel_fut => {
