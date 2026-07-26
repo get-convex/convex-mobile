@@ -37,9 +37,12 @@ generate_ffi() {
 }
 
 create_simulator_lib() {
-  echo "Creating a library for aarch64 simulator"
+  echo "Creating a library for aarch64 and x86_64 simulators"
   mkdir -p $simulator_lib_dir
-  lipo -create target/aarch64-apple-ios-sim/release/lib$1.a -output $simulator_lib_dir/lib$1.a
+  lipo -create \
+    target/aarch64-apple-ios-sim/release/lib$1.a \
+    target/x86_64-apple-ios/release/lib$1.a \
+    -output $simulator_lib_dir/lib$1.a
 }
 
 build_xcframework() {
@@ -64,6 +67,7 @@ build_xcframework() {
 }
 
 cargo build --lib --release --target aarch64-apple-ios-sim
+cargo build --lib --release --target x86_64-apple-ios
 cargo build --lib --release --target aarch64-apple-ios
 cargo build --lib --release --target aarch64-apple-darwin
 
