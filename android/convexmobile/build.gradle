@@ -56,9 +56,10 @@ cargo {
     profile = "release"
 
     exec { spec, toolchain ->
-        // Support 16KB page sizes
+        // Support 16KB page sizes. max-page-size aligns LOAD segments; common-page-size makes lld
+        // pad the end of PT_GNU_RELRO to 16KB too, which Android's ELF alignment check requires.
         // https://developer.android.com/guide/practices/page-sizes#other-build-systems
-        spec.environment("RUST_ANDROID_GRADLE_CC_LINK_ARG", "-Wl,-z,max-page-size=16384,-soname,lib${libname}.so")
+        spec.environment("RUST_ANDROID_GRADLE_CC_LINK_ARG", "-Wl,-z,max-page-size=16384,-z,common-page-size=16384,-soname,lib${libname}.so")
 
         // Required env vars for aws-lc-rs to compile its aws-lc dependency w/ CMake.
         def ndkRoot = new File(android.sdkDirectory, "ndk/${android.ndkVersion}")
