@@ -168,7 +168,7 @@ dependencies {
     androidTestImplementation libs.androidx.junit
     androidTestImplementation libs.androidx.espresso.core
     // Have to use string dependency reference for JNA due to https://github.com/gradle/gradle/issues/21267
-    implementation "net.java.dev.jna:jna:5.14.0@aar"
+    implementation "net.java.dev.jna:jna:5.19.1@aar"
     implementation libs.kotlinx.serialization.json
     testImplementation libs.kotlinx.coroutines.test
     androidTestImplementation libs.kotlinx.coroutines.test
