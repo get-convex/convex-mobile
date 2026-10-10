@@ -18,13 +18,12 @@ futures = { version = "0.3" }
 parking_lot = { version = "0.12.3" }
 async-once-cell = { version = "0.5.3" }
 serde_json = { version = "1.0.120" }
-rustls = { version = "0.23", features = ["aws-lc-rs"] }
-aws-lc-rs = { version = "1.14", features = ["bindgen"], optional = true }
+rustls = { version = "0.23", default-features = false, features = ["ring", "logging", "std", "tls12"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [features]
-default = ["aws-lc-rs"]
+default = []
 max_level_off = ["tracing/max_level_off"]
 max_level_error = ["tracing/max_level_error"]
 max_level_warn = ["tracing/max_level_warn"]

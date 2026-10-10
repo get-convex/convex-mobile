@@ -27,6 +27,7 @@ done
 
 
 simulator_lib_dir="target/ios-simulator/release"
+tvos_simulator_lib_dir="target/tvos-simulator/release"
 
 generate_ffi() {
   echo "Generating framework module mapping and FFI bindings"
@@ -42,6 +43,12 @@ create_simulator_lib() {
   lipo -create target/aarch64-apple-ios-sim/release/lib$1.a -output $simulator_lib_dir/lib$1.a
 }
 
+create_tvos_simulator_lib() {
+  echo "Creating a library for aarch64 tvOS simulator"
+  mkdir -p $tvos_simulator_lib_dir
+  lipo -create target/aarch64-apple-tvos-sim/release/lib$1.a -output $tvos_simulator_lib_dir/lib$1.a
+}
+
 build_xcframework() {
   # Builds an XCFramework
   echo "Generating XCFramework"
@@ -50,6 +57,8 @@ build_xcframework() {
     -library target/aarch64-apple-ios/release/lib$1.a -headers target/uniffi-xcframework-staging \
     -library target/ios-simulator/release/lib$1.a -headers target/uniffi-xcframework-staging \
     -library target/aarch64-apple-darwin/release/lib$1.a -headers target/uniffi-xcframework-staging \
+    -library target/aarch64-apple-tvos/release/lib$1.a -headers target/uniffi-xcframework-staging \
+    -library target/tvos-simulator/release/lib$1.a -headers target/uniffi-xcframework-staging \
     -output target/ios/lib$1-rs.xcframework
   cp -R target/ios/lib$1-rs.xcframework ../ios
 
@@ -66,8 +75,11 @@ build_xcframework() {
 cargo build --lib --release --target aarch64-apple-ios-sim
 cargo build --lib --release --target aarch64-apple-ios
 cargo build --lib --release --target aarch64-apple-darwin
+cargo build --lib --release --target aarch64-apple-tvos
+cargo build --lib --release --target aarch64-apple-tvos-sim
 
 basename=convexmobile
 generate_ffi $basename
 create_simulator_lib $basename
+create_tvos_simulator_lib $basename
 build_xcframework $basename
