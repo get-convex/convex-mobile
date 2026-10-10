@@ -4,7 +4,22 @@ version = "0.3.0"
 edition = "2021"
 
 [dependencies]
-uniffi = { version = "0.28", features = ["cli"] }
+# NOTE: no `cli` feature here, on purpose.
+#
+# `cli` pulls in `uniffi_bindgen` — the build-time code generator — and
+# `crate-type` below includes `staticlib`, so enabling it unconditionally
+# compiles the generator and its `cargo_metadata`/`serde` dependencies into the
+# library that ships inside the app. That is ~500 undefined symbols of dead
+# weight, normally invisible because the linker dead-strips them.
+#
+# It stops being invisible the moment anything disables dead-stripping: linking
+# with `-Xlinker -interposable`, which SwiftUI hot reloading requires, keeps them
+# and the app dies at launch with `dyld: Symbol not found` on a `cargo_metadata`
+# symbol.
+#
+# `build-ios.sh` already enables the feature only where it is actually needed:
+#   cargo run --features=uniffi/cli --bin uniffi-bindgen …
+uniffi = { version = "0.28" }
 tokio = { version = "1", features = ["full"] }
 android_logger = { version = "0.14.1" }
 log = { version = "0.4.21" }
