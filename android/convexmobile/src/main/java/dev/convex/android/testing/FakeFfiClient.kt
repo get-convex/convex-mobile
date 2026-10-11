@@ -2,6 +2,7 @@ package dev.convex.android.testing
 
 import dev.convex.android.AuthTokenProvider
 import dev.convex.android.MobileConvexClientInterface
+import dev.convex.android.MobileOptimisticUpdate
 import dev.convex.android.NoPointer
 import dev.convex.android.QuerySubscriber
 import dev.convex.android.SubscriptionHandle
@@ -23,6 +24,21 @@ class FakeFfiClient : MobileConvexClientInterface {
     override suspend fun mutation(name: String, args: Map<String, String>): String {
         mutations[name] = args
         return Json.encodeToString<Unit?>(null)
+    }
+
+    val optimisticStore = FakeOptimisticLocalStore()
+
+    /**
+     * Runs [optimisticUpdate] on [optimisticStore], then records the mutation. Like the Rust client,
+     * the mutation isn't sent if the update throws.
+     */
+    override suspend fun mutationWithOptimisticUpdate(
+        name: String,
+        args: Map<String, String>,
+        optimisticUpdate: MobileOptimisticUpdate
+    ): String {
+        optimisticUpdate.apply(optimisticStore)
+        return mutation(name, args)
     }
 
     override suspend fun query(name: String, args: Map<String, String>): String {

@@ -25,6 +25,28 @@ interface AuthTokenProvider {
     string? fetch_token(boolean force_refresh);
 };
 
+dictionary MobileOptimisticQuery {
+    record<string, string> args;
+    string? value;
+};
+
+interface MobileOptimisticLocalStore {
+    [Throws=ClientError]
+    string? get_query(string name, record<string, string> args);
+
+    [Throws=ClientError]
+    sequence<MobileOptimisticQuery> get_all_queries(string name);
+
+    [Throws=ClientError]
+    void set_query(string name, record<string, string> args, string? value);
+};
+
+[Trait, WithForeign]
+interface MobileOptimisticUpdate {
+    [Throws=ClientError]
+    void apply(MobileOptimisticLocalStore store);
+};
+
 interface MobileConvexClient {
     constructor(string deployment_url, string client_id, WebSocketStateSubscriber? web_socket_state_subscriber);
 
@@ -36,6 +58,9 @@ interface MobileConvexClient {
 
     [Async, Throws=ClientError]
     string mutation(string name, record<string, string> args);
+
+    [Async, Throws=ClientError]
+    string mutation_with_optimistic_update(string name, record<string, string> args, MobileOptimisticUpdate optimistic_update);
 
     [Async, Throws=ClientError]
     string action(string name, record<string, string> args);

@@ -1,5 +1,6 @@
 package dev.convex.android
 
+import dev.convex.android.testing.CallKey
 import dev.convex.android.testing.FakeFfiClient
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -285,6 +286,40 @@ class ConvexClientTest {
         expectThat(flowResults)[0].isSuccess()
         expectThat(flowResults)[1].isFailure()
         expectThat(flowResults)[2].isSuccess()
+    }
+
+    @Test
+    fun `optimistic update writes to the local store`() = runTest {
+        client.mutation(QUERY_NAME, optimisticUpdate = { store ->
+            val messages: List<String> = store.getQuery("messages:list") ?: listOf()
+            store.setQuery("messages:list", value = messages + "hi")
+        })
+
+        expectThat(ffiClient.optimisticStore.queries[CallKey("messages:list", mapOf())])
+            .isEqualTo("[\"hi\"]")
+        expectThat(ffiClient.mutations.containsKey(QUERY_NAME)).isTrue()
+    }
+
+    @Test
+    fun `mutation rethrows the optimistic update's exception without sending`() = runTest {
+        val error = runCatching {
+            client.mutation(QUERY_NAME, optimisticUpdate = { throw IllegalStateException("bad") })
+        }.exceptionOrNull()
+
+        expectThat(error).isA<IllegalStateException>().message.isEqualTo("bad")
+        expectThat(ffiClient.mutations.containsKey(QUERY_NAME)).isFalse()
+    }
+
+    @Test
+    fun `optimistic store throws the client's error types`() = runTest {
+        ffiClient.optimisticStore.nextError = ClientException.InternalException("boom")
+        var storeError: Throwable? = null
+
+        client.mutation(QUERY_NAME, optimisticUpdate = { store ->
+            storeError = runCatching { store.getQuery<String>("messages:list") }.exceptionOrNull()
+        })
+
+        expectThat(storeError).isA<InternalError>()
     }
 }
 

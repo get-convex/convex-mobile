@@ -208,6 +208,58 @@ open class ConvexClient(
     suspend fun mutation(name: String, args: Map<String, Any?>? = null) {
         mutation<Unit?>(name = name, args = args)
     }
+
+    /**
+     * Executes the mutation with the given [name] and [args], applying [optimisticUpdate] to local
+     * query results while it's in flight, and returns the result.
+     *
+     * If [optimisticUpdate] throws when the mutation is called, the mutation isn't sent and this
+     * rethrows its exception.
+     *
+     * @param T data type that will be decoded from JSON and returned
+     */
+    suspend inline fun <reified T> mutation(
+        name: String,
+        args: Map<String, Any?>? = null,
+        noinline optimisticUpdate: OptimisticUpdate
+    ): T {
+        val adapter = optimisticUpdateAdapter(optimisticUpdate)
+        try {
+            val jsonData = ffiClient.mutationWithOptimisticUpdate(
+                name,
+                args?.mapValues { it.value.toJsonElement().toString() } ?: mapOf(),
+                adapter)
+            try {
+                return jsonApi.decodeFromString<T>(jsonData)
+            } catch (e: Throwable) {
+                throw InternalError(
+                    "Failed to decode JSON, ensure you're using types compatible with Convex in your return value",
+                    e
+                )
+            }
+        } catch (e: ClientException) {
+            throw adapter.firstRunError ?: e.toError()
+        }
+    }
+
+    /**
+     * Executes the mutation with the given [name] and [args], applying [optimisticUpdate] to local
+     * query results while it's in flight.
+     *
+     * This version requires that the remote mutation returns null or no value.
+     */
+    @JvmName("voidMutationWithOptimisticUpdate")
+    suspend fun mutation(
+        name: String,
+        args: Map<String, Any?>? = null,
+        optimisticUpdate: OptimisticUpdate
+    ) {
+        mutation<Unit?>(name = name, args = args, optimisticUpdate = optimisticUpdate)
+    }
+
+    @PublishedApi
+    internal fun optimisticUpdateAdapter(update: OptimisticUpdate): OptimisticUpdateAdapter =
+        OptimisticUpdateAdapter(update)
 }
 
 /**
