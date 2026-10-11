@@ -2,6 +2,7 @@ package dev.convex.android
 
 import android.content.Context
 import android.util.Log
+import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -41,6 +42,23 @@ typealias Int32 = @Serializable(Int64ToIntDecoder::class) Int
 typealias Float32 = @Serializable(Float64ToFloatDecoder::class) Float
 typealias ConvexNum = Contextual
 
+private fun defaultFfiClientFactory(
+    queryCacheDirectory: String?
+): (String, String, WebSocketStateSubscriber?) -> MobileConvexClientInterface =
+    { deploymentUrl, clientId, webSocketStateSubscriber ->
+        MobileConvexClient(deploymentUrl, clientId, webSocketStateSubscriber, queryCacheDirectory)
+    }
+
+/**
+ * A directory for [ConvexClient]'s `queryCacheDirectory` that's private to the app, excluded from
+ * backups and separate for each deployment.
+ */
+fun defaultQueryCacheDirectory(context: Context, deploymentUrl: String): String =
+    File(
+        File(context.noBackupFilesDir, "ConvexQueryCache"),
+        deploymentUrl.replace(Regex("[^A-Za-z0-9]"), "_")
+    ).path
+
 /**
  * A client API for interacting with a Convex backend.
  *
@@ -49,10 +67,16 @@ typealias ConvexNum = Contextual
  *
  * Consumers of this client should use Kotlin's JSON serialization to handle data sent to/from the
  * Convex backend.
+ *
+ * @param queryCacheDirectory if set, the latest query results are saved in this directory and shown
+ * by subscriptions in later runs until fresh results arrive, including while offline. Use one
+ * directory per client, e.g. [defaultQueryCacheDirectory]. Cached results belong to whoever was
+ * signed in; call [clearQueryCache] when that changes.
  */
 open class ConvexClient(
     deploymentUrl: String,
-    ffiClientFactory: (deploymentUrl: String, clientId: String, webSocketStateSubscriber: WebSocketStateSubscriber?) -> MobileConvexClientInterface = ::MobileConvexClient
+    queryCacheDirectory: String? = null,
+    ffiClientFactory: (deploymentUrl: String, clientId: String, webSocketStateSubscriber: WebSocketStateSubscriber?) -> MobileConvexClientInterface = defaultFfiClientFactory(queryCacheDirectory)
 ) {
     private val _webSocketStateFlow = MutableStateFlow(WebSocketState.CONNECTING)
     private val webSocketStateSubscriber = object : WebSocketStateSubscriber {
@@ -257,6 +281,19 @@ open class ConvexClient(
         mutation<Unit?>(name = name, args = args, optimisticUpdate = optimisticUpdate)
     }
 
+    /**
+     * Deletes all cached query results, in memory and on disk, for example when the user signs
+     * out. Subscriptions showing a cached result go back to loading until the server sends a
+     * fresh one. Does nothing if the client has no `queryCacheDirectory`.
+     */
+    suspend fun clearQueryCache() {
+        try {
+            ffiClient.clearQueryCache()
+        } catch (e: ClientException) {
+            throw e.toError()
+        }
+    }
+
     @PublishedApi
     internal fun optimisticUpdateAdapter(update: OptimisticUpdate): OptimisticUpdateAdapter =
         OptimisticUpdateAdapter(update)
@@ -271,8 +308,9 @@ class ConvexClientWithAuth<T>(
     deploymentUrl: String,
     private val authProvider: AuthProvider<T>,
     private val coroutineScope: CoroutineScope = CoroutineScope(SupervisorJob()),
-    ffiClientFactory: (deploymentUrl: String, clientId: String, webSocketSocketStateSubscriber: WebSocketStateSubscriber?) -> MobileConvexClientInterface = ::MobileConvexClient
-) : ConvexClient(deploymentUrl, ffiClientFactory) {
+    queryCacheDirectory: String? = null,
+    ffiClientFactory: (deploymentUrl: String, clientId: String, webSocketSocketStateSubscriber: WebSocketStateSubscriber?) -> MobileConvexClientInterface = defaultFfiClientFactory(queryCacheDirectory)
+) : ConvexClient(deploymentUrl, queryCacheDirectory, ffiClientFactory) {
     private val _authState = MutableStateFlow<AuthState<T>>(AuthState.Unauthenticated())
     private var authBridge: AuthTokenProviderBridge? = null
 
@@ -289,7 +327,7 @@ class ConvexClientWithAuth<T>(
      * the result.
      */
     suspend fun login(context: Context): Result<T> =
-        loginWithStrategy { cb -> authProvider.login(context, cb) }
+        loginWithStrategy(isNewSession = true) { cb -> authProvider.login(context, cb) }
 
     /**
      * Triggers a cached, UI-less re-authentication flow using previously stored credentials and
@@ -307,24 +345,29 @@ class ConvexClientWithAuth<T>(
      * @throws NotImplementedError if the [AuthProvider] doesn't support [loginFromCache]
      */
     suspend fun loginFromCache(): Result<T> =
-        loginWithStrategy { cb -> authProvider.loginFromCache(cb) }
+        loginWithStrategy(isNewSession = false) { cb -> authProvider.loginFromCache(cb) }
 
     /**
      * Triggers a logout flow and updates the [authState].
      *
-     * The [authState] will change to [AuthState.Unauthenticated] if logout is successful.
+     * The [authState] will change to [AuthState.Unauthenticated] if logout is successful. Cached
+     * query results are cleared either way, so they aren't shown to whoever signs in next.
      */
     suspend fun logout(context: Context): Result<Void?> {
         val result = authProvider.logout(context)
         if (result.isSuccess) {
             authBridge = null
             ffiClient.setAuthCallback(null)
+        }
+        clearQueryCacheLoggingErrors()
+        if (result.isSuccess) {
             _authState.emit(AuthState.Unauthenticated())
         }
         return result
     }
 
     private suspend fun loginWithStrategy(
+        isNewSession: Boolean,
         strategy: suspend (onIdToken: (String?) -> Unit) -> Result<T>
     ): Result<T> {
         _authState.emit(AuthState.AuthLoading())
@@ -339,6 +382,12 @@ class ConvexClientWithAuth<T>(
                         ?.let { authProvider.extractIdToken(it) }
                 }
             )
+            // A user may switch accounts without logging out; the previous user's cached results
+            // mustn't be shown to the new one. Clear them before installing the new session, so
+            // they aren't shown in between and the new session's results aren't deleted.
+            if (isNewSession && authBridge != null) {
+                clearQueryCacheLoggingErrors()
+            }
             authBridge = bridge
             ffiClient.setAuthCallback(bridge)
             _authState.emit(AuthState.Authenticated(authData))
@@ -351,6 +400,14 @@ class ConvexClientWithAuth<T>(
      * This handler is passed to the auth provider during login and should be called
      * whenever a fresh token is available or when the session becomes invalid.
      */
+    private suspend fun clearQueryCacheLoggingErrors() {
+        try {
+            ffiClient.clearQueryCache()
+        } catch (e: ClientException) {
+            Log.e("ConvexClientWithAuth", "Failed to clear the query cache", e)
+        }
+    }
+
     private fun onIdTokenHandler(): (String?) -> Unit = { token ->
         coroutineScope.launch {
             try {
@@ -358,8 +415,11 @@ class ConvexClientWithAuth<T>(
                     authBridge?.updateToken(token)
                     authBridge?.let { ffiClient.setAuthCallback(it) }
                 } else {
+                    // The session is no longer valid, so its cached results mustn't be shown to
+                    // whoever signs in next.
                     authBridge = null
                     ffiClient.setAuthCallback(null)
+                    clearQueryCacheLoggingErrors()
                     _authState.emit(AuthState.Unauthenticated())
                 }
             } catch (e: Exception) {

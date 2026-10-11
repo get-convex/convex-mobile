@@ -48,7 +48,7 @@ interface MobileOptimisticUpdate {
 };
 
 interface MobileConvexClient {
-    constructor(string deployment_url, string client_id, WebSocketStateSubscriber? web_socket_state_subscriber);
+    constructor(string deployment_url, string client_id, WebSocketStateSubscriber? web_socket_state_subscriber, string? query_cache_directory);
 
     [Async, Throws=ClientError]
     string query(string name, record<string, string> args);
@@ -67,6 +67,9 @@ interface MobileConvexClient {
 
     [Async, Throws=ClientError]
     void set_auth(string? token);
+
+    [Async, Throws=ClientError]
+    void clear_query_cache();
 
     [Async, Throws=ClientError]
     void set_auth_callback(AuthTokenProvider? provider);

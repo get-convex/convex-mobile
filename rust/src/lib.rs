@@ -5,8 +5,10 @@ use std::{
 
 use async_once_cell::OnceCell;
 use convex::{
-    AuthTokenFetcher, AuthenticationToken, ConvexClient, ConvexClientBuilder, FunctionResult,
-    OptimisticLocalStore, OptimisticQuery, Value, WebSocketState,
+    AuthTokenFetcher, AuthenticationToken, ConvexClient, ConvexClientBuilder,
+    FileQueryCacheStorage, FunctionResult, OptimisticLocalStore, OptimisticQuery,
+    QueryCacheStorage, Value,
+    WebSocketState,
 };
 use futures::{
     channel::oneshot::{self, Sender},
@@ -216,7 +218,12 @@ struct MobileConvexClient {
     deployment_url: String,
     client_id: String,
     web_socket_state_subscriber: Option<Arc<dyn WebSocketStateSubscriber>>,
+    query_cache_directory: Option<String>,
     client: OnceCell<ConvexClient>,
+    /// Held while the client is created and stored, since creating it loads
+    /// the query cache, so clearing the cache can't miss results loaded by a
+    /// concurrent connect.
+    client_init_lock: tokio::sync::Mutex<()>,
     rt: tokio::runtime::Runtime,
 }
 
@@ -228,10 +235,15 @@ impl MobileConvexClient {
     ///
     /// The `client_id` should be a string representing the name and version of
     /// the foreign client.
+    ///
+    /// If `query_cache_directory` is set, the latest query results are saved in
+    /// that directory and shown by subscriptions in later runs until fresh
+    /// results arrive, including while offline.
     pub fn new(
         deployment_url: String,
         client_id: String,
         web_socket_state_subscriber: Option<Arc<dyn WebSocketStateSubscriber>>,
+        query_cache_directory: Option<String>,
     ) -> MobileConvexClient {
         let rt = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
@@ -241,7 +253,9 @@ impl MobileConvexClient {
             deployment_url,
             client_id,
             web_socket_state_subscriber,
+            query_cache_directory,
             client: OnceCell::new(),
+            client_init_lock: tokio::sync::Mutex::new(()),
             rt,
         }
     }
@@ -254,8 +268,13 @@ impl MobileConvexClient {
     /// Returns an error if ...
     /// TODO figure out reasons.
     async fn connected_client(&self) -> anyhow::Result<ConvexClient> {
+        if let Some(client) = self.client.get() {
+            return Ok(client.clone());
+        }
         let url = self.deployment_url.clone();
 
+        // Held until the client is stored, so `clear_query_cache` sees it.
+        let _init_guard = self.client_init_lock.lock().await;
         self.client
             .get_or_try_init(async {
                 let client_id = self.client_id.to_owned();
@@ -270,12 +289,17 @@ impl MobileConvexClient {
                 }
 
                 let has_subscriber = possible_subscriber.is_some();
+                let query_cache_directory = self.query_cache_directory.clone();
                 self.rt
                     .spawn(async move {
                         let mut builder =
                             ConvexClientBuilder::new(url.as_str()).with_client_id(&client_id);
                         if has_subscriber {
                             builder = builder.with_on_state_change(tx);
+                        }
+                        if let Some(directory) = query_cache_directory {
+                            builder = builder
+                                .with_query_cache(Arc::new(FileQueryCacheStorage::new(directory)));
                         }
                         builder.build().await
                     })
@@ -450,6 +474,32 @@ impl MobileConvexClient {
             .spawn(async move { client.set_auth(token).await })
             .await
             .map_err(|e| e.into())
+    }
+
+    /// Delete cached query results, e.g. when the user signs out.
+    pub async fn clear_query_cache(&self) -> Result<(), ClientError> {
+        // Clear through the client if it's running so it also forgets cached
+        // results in memory; otherwise clearing storage is enough, without
+        // connecting just to do it.
+        let _init_guard = self.client_init_lock.lock().await;
+        match self.client.get() {
+            Some(client) => {
+                let mut client = client.clone();
+                self.rt
+                    .spawn(async move { client.clear_query_cache().await })
+                    .await
+                    .map_err(anyhow::Error::from)??;
+            },
+            None => {
+                if let Some(directory) = self.query_cache_directory.clone() {
+                    self.rt
+                        .spawn(async move { FileQueryCacheStorage::new(directory).clear().await })
+                        .await
+                        .map_err(anyhow::Error::from)??;
+                }
+            },
+        }
+        Ok(())
     }
 
     /// Set an auth token fetcher callback.
